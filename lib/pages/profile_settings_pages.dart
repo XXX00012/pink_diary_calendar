@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pink_diary_calendar/models/app_settings.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
+import 'package:pink_diary_calendar/services/notification_service.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
 import 'package:pink_diary_calendar/theme/theme_controller.dart';
 import 'package:pink_diary_calendar/utils/profile_theme_utils.dart';
@@ -187,15 +188,20 @@ class ReminderSettingsPage extends StatefulWidget {
 
 class _ReminderSettingsPageState extends State<ReminderSettingsPage> {
   final TextEditingController _timeController = TextEditingController();
+  final NotificationService _notificationService = NotificationService.instance;
 
   late bool _enabled;
+  late bool _permissionGranted;
   bool _isSaving = false;
+  bool _isRequestingPermission = false;
 
   @override
   void initState() {
     super.initState();
-    _enabled = widget.settings.reminderEnabled;
-    _timeController.text = widget.settings.dailyReminderTime;
+    _enabled = widget.settings.anniversaryNotificationEnabled;
+    _permissionGranted = widget.settings.notificationPermissionGranted;
+    _timeController.text = widget.settings.anniversaryReminderTime;
+    _refreshPermissionStatus();
   }
 
   @override
@@ -206,12 +212,12 @@ class _ReminderSettingsPageState extends State<ReminderSettingsPage> {
 
   Future<void> _pickTime() async {
     final parts = _timeController.text.split(':');
-    final initialHour = int.tryParse(parts.first) ?? 21;
-    final initialMinute = parts.length > 1 ? int.tryParse(parts[1]) ?? 30 : 30;
+    final initialHour = int.tryParse(parts.first) ?? 9;
+    final initialMinute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: initialHour, minute: initialMinute),
-      helpText: '选择提醒时间',
+      helpText: '选择纪念日提醒时间',
       cancelText: '取消',
       confirmText: '确定',
     );
@@ -224,50 +230,277 @@ class _ReminderSettingsPageState extends State<ReminderSettingsPage> {
     });
   }
 
+  Future<void> _refreshPermissionStatus() async {
+    try {
+      final granted = await _notificationService.areNotificationsEnabled();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _permissionGranted = granted;
+        if (!granted) {
+          _enabled = false;
+        }
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Refresh notification permission failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _permissionGranted = false;
+        _enabled = false;
+      });
+    }
+  }
+
+  Future<void> _handleEnabledChanged(bool value) async {
+    if (!value) {
+      setState(() {
+        _enabled = false;
+      });
+      await _persistSettings(popWhenDone: false, enabled: false);
+      return;
+    }
+
+    setState(() => _isRequestingPermission = true);
+    try {
+      final granted = await _notificationService.requestPermission();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _enabled = granted;
+        _permissionGranted = granted;
+      });
+
+      if (!granted) {
+        await _persistSettings(popWhenDone: false, enabled: false);
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('系统通知权限未开启，暂时无法提醒重要日子')));
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Request notification permission failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _enabled = false;
+        _permissionGranted = false;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('系统通知权限请求失败：${_friendlyError(error)}')),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _isRequestingPermission = false);
+      }
+    }
+  }
+
   Future<void> _save() async {
+    await _persistSettings(popWhenDone: true);
+  }
+
+  Future<void> _persistSettings({
+    required bool popWhenDone,
+    bool? enabled,
+  }) async {
     setState(() => _isSaving = true);
+    var nextEnabled = enabled ?? _enabled;
+    var nextPermissionGranted = _permissionGranted;
+
+    if (nextEnabled && !nextPermissionGranted) {
+      nextPermissionGranted = await _notificationService.requestPermission();
+      if (!mounted) {
+        return;
+      }
+      if (!nextPermissionGranted) {
+        nextEnabled = false;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('系统通知权限未开启，暂时无法提醒重要日子')));
+      }
+    }
+
+    final reminderTime = _normalizedReminderTime();
     final settings = widget.settings.copyWith(
-      reminderEnabled: _enabled,
-      dailyReminderTime: _timeController.text.trim(),
+      anniversaryNotificationEnabled: nextEnabled,
+      anniversaryReminderTime: reminderTime,
+      notificationPermissionGranted: nextPermissionGranted,
       updatedAt: DateTime.now(),
     );
 
     try {
       await widget.storageService.saveAppSettings(settings);
-      if (!mounted) {
-        return;
-      }
-      Navigator.of(context).pop(true);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Save notification settings failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       if (!mounted) {
         return;
       }
       setState(() => _isSaving = false);
-      _showSaveFailed(context);
+      _showMessage('保存通知设置失败：${_friendlyError(error)}');
+      return;
     }
+
+    String? scheduleWarning;
+    try {
+      if (nextEnabled && nextPermissionGranted) {
+        final scheduled = await _notificationService
+            .rescheduleAnniversaryNotifications(
+              storageService: widget.storageService,
+            );
+        if (!scheduled) {
+          nextEnabled = false;
+          final disabledSettings = settings.copyWith(
+            anniversaryNotificationEnabled: false,
+            updatedAt: DateTime.now(),
+          );
+          await widget.storageService.saveAppSettings(disabledSettings);
+          scheduleWarning = '通知设置已保存，但当前手机暂不支持定时提醒，请检查系统通知/闹钟权限。';
+        }
+      } else {
+        await _notificationService.cancelAllAnniversaryNotifications();
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Apply notification schedule failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      nextEnabled = false;
+      try {
+        await widget.storageService.saveAppSettings(
+          settings.copyWith(
+            anniversaryNotificationEnabled: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+      } catch (saveError, saveStackTrace) {
+        debugPrint('Disable notification settings failed: $saveError');
+        debugPrintStack(stackTrace: saveStackTrace);
+      }
+      scheduleWarning = '通知设置已保存，但当前手机暂不支持定时提醒，请检查系统通知/闹钟权限。';
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _enabled = nextEnabled;
+      _permissionGranted = nextPermissionGranted;
+      _timeController.text = reminderTime;
+      _isSaving = false;
+    });
+
+    _showMessage(scheduleWarning ?? '通知设置已保存');
+    if (popWhenDone && scheduleWarning == null) {
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    }
+  }
+
+  Future<void> _sendTestNotification() async {
+    try {
+      final granted = await _notificationService.areNotificationsEnabled();
+      if (!mounted) {
+        return;
+      }
+
+      if (!granted) {
+        setState(() => _permissionGranted = false);
+        _showMessage('请先开启系统通知权限');
+        return;
+      }
+
+      final sent = await _notificationService.scheduleTestNotification();
+      if (!mounted) {
+        return;
+      }
+      if (sent) {
+        _showMessage('测试通知已发送');
+      } else {
+        setState(() => _enabled = false);
+        _showMessage('测试通知发送失败：当前手机暂不支持通知，请检查系统通知权限。');
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Send test notification failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) {
+        return;
+      }
+      _showMessage('测试通知发送失败：${_friendlyError(error)}');
+    }
+  }
+
+  String _normalizedReminderTime() {
+    final parts = _timeController.text.trim().split(':');
+    final hour = (int.tryParse(parts.first) ?? 9).clamp(0, 23).toInt();
+    final minute = (parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0)
+        .clamp(0, 59)
+        .toInt();
+    return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+  }
+
+  String _friendlyError(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
+    if (message.isEmpty) {
+      return '未知错误';
+    }
+    return message.length > 80 ? '${message.substring(0, 80)}…' : message;
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return ProfileSettingScaffold(
-      title: '提醒设置',
-      subtitle: '当前先保存提醒偏好，系统通知功能后续接入',
+      title: '通知设置',
+      subtitle: '只提醒重要日子，不打扰你的自由记录',
       child: Column(
         children: [
           WarmCard(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  '开启后，暖桃日记只会在你设置的生日、纪念日和重要日期前提醒你，不会催你每天写日记。',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.ink,
+                    height: 1.55,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 18),
                 SwitchListTile(
                   value: _enabled,
-                  onChanged: (value) => setState(() => _enabled = value),
+                  onChanged: _isRequestingPermission
+                      ? null
+                      : _handleEnabledChanged,
                   contentPadding: EdgeInsets.zero,
                   activeThumbColor: AppColors.roseDeep,
                   title: Text(
-                    '每日记录提醒',
+                    '开启纪念日提醒',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   subtitle: Text(
-                    '留一个属于自己的安静记录时间',
+                    '生日、纪念日和重要日期会按你设置的时间提醒',
                     style: Theme.of(
                       context,
                     ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
@@ -278,13 +511,73 @@ class _ReminderSettingsPageState extends State<ReminderSettingsPage> {
                   controller: _timeController,
                   readOnly: true,
                   onTap: _pickTime,
-                  decoration: softInputDecoration('提醒时间，例如 21:30'),
+                  decoration: softInputDecoration('提醒时间，例如 09:00'),
                 ),
+                const SizedBox(height: 14),
+                _PermissionStatusRow(granted: _permissionGranted),
+                if (!_enabled) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    '开启后，系统会在重要日子到来前提醒你。',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 18),
-          _SaveButton(isSaving: _isSaving, label: '保存提醒设置', onPressed: _save),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _sendTestNotification,
+              icon: const Icon(Icons.notifications_active_outlined),
+              label: const Text('发送测试通知'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SaveButton(isSaving: _isSaving, label: '保存通知设置', onPressed: _save),
+        ],
+      ),
+    );
+  }
+}
+
+class _PermissionStatusRow extends StatelessWidget {
+  const _PermissionStatusRow({required this.granted});
+
+  final bool granted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.cream.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.75)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            granted
+                ? Icons.notifications_active_outlined
+                : Icons.notifications_off_outlined,
+            color: granted ? const Color(0xFF6AA978) : AppColors.muted,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              granted ? '系统通知权限：已允许' : '系统通知权限：未开启',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ],
       ),
     );

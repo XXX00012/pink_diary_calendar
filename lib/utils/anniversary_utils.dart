@@ -46,7 +46,7 @@ class AnniversaryUtils {
     '自定义',
   ];
 
-  static const List<int> reminderOptions = [0, 1, 3, 7];
+  static const List<int> reminderOptions = [-1, 0, 1, 3, 7];
 
   static const List<AnniversaryThemeOption> themeOptions = [
     AnniversaryThemeOption(

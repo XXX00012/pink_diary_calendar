@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pink_diary_calendar/pages/home_shell_page.dart';
+import 'package:pink_diary_calendar/services/notification_service.dart';
 import 'package:pink_diary_calendar/theme/app_theme.dart';
 import 'package:pink_diary_calendar/theme/theme_controller.dart';
 
@@ -17,6 +18,17 @@ class _WarmPeachCalendarAppState extends State<WarmPeachCalendarApp> {
   void initState() {
     super.initState();
     _themeController.loadTheme();
+    NotificationService.instance
+        .initialize()
+        .then((_) {
+          return NotificationService.instance
+              .rescheduleAnniversaryNotifications();
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          debugPrint('Startup notification sync failed: $error');
+          debugPrintStack(stackTrace: stackTrace);
+          return false;
+        });
   }
 
   @override

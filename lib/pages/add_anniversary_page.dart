@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pink_diary_calendar/models/anniversary.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
+import 'package:pink_diary_calendar/services/notification_service.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
 import 'package:pink_diary_calendar/utils/anniversary_utils.dart';
 import 'package:pink_diary_calendar/utils/calendar_utils.dart';
@@ -131,6 +132,7 @@ class _AddAnniversaryPageState extends State<AddAnniversaryPage> {
       } else {
         await widget.storageService.addAnniversary(anniversary);
       }
+      await _rescheduleAnniversaryNotifications();
 
       if (!mounted) {
         return;
@@ -180,10 +182,22 @@ class _AddAnniversaryPageState extends State<AddAnniversaryPage> {
     }
 
     await widget.storageService.deleteAnniversary(anniversary.id);
+    await _rescheduleAnniversaryNotifications();
     if (!mounted) {
       return;
     }
     Navigator.of(context).pop('deleted');
+  }
+
+  Future<void> _rescheduleAnniversaryNotifications() async {
+    try {
+      await NotificationService.instance.rescheduleAnniversaryNotifications(
+        storageService: widget.storageService,
+      );
+    } catch (_) {
+      // Saving the anniversary should stay reliable even if system permission
+      // or a platform notification channel is temporarily unavailable.
+    }
   }
 
   void _showTip(String message) {

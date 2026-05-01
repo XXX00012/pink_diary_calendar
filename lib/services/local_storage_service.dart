@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:pink_diary_calendar/models/app_settings.dart';
 import 'package:pink_diary_calendar/models/anniversary.dart';
 import 'package:pink_diary_calendar/models/daily_record.dart';
+import 'package:pink_diary_calendar/models/life_list.dart';
 import 'package:pink_diary_calendar/models/user_profile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,6 +14,7 @@ class LocalStorageService {
   static const String _anniversariesKey = 'anniversaries';
   static const String _userProfileKey = 'userProfile';
   static const String _appSettingsKey = 'appSettings';
+  static const String _lifeListsKey = 'lifeLists';
 
   Future<Map<String, DailyRecord>> loadDailyRecords() async {
     final preferences = await SharedPreferences.getInstance();
@@ -191,9 +193,67 @@ class LocalStorageService {
     );
   }
 
+  Future<List<LifeList>> getLifeLists() {
+    return loadLifeLists();
+  }
+
+  Future<List<LifeList>> loadLifeLists() async {
+    final preferences = await SharedPreferences.getInstance();
+    final rawLifeLists = preferences.getString(_lifeListsKey);
+    if (rawLifeLists == null || rawLifeLists.isEmpty) {
+      return [];
+    }
+
+    try {
+      final decoded = jsonDecode(rawLifeLists);
+      if (decoded is! List) {
+        return [];
+      }
+
+      return decoded
+          .whereType<Map>()
+          .map((entry) => LifeList.fromJson(Map<String, dynamic>.from(entry)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<LifeList>> loadLifeListsByType(String type) async {
+    final lifeLists = await loadLifeLists();
+    return lifeLists.where((entry) => entry.type == type).toList()
+      ..sort((first, second) => second.updatedAt.compareTo(first.updatedAt));
+  }
+
+  Future<void> saveLifeLists(List<LifeList> lifeLists) async {
+    final preferences = await SharedPreferences.getInstance();
+    final payload = lifeLists.map((entry) => entry.toJson()).toList();
+    await preferences.setString(_lifeListsKey, jsonEncode(payload));
+  }
+
+  Future<void> addLifeList(LifeList lifeList) async {
+    final lifeLists = await loadLifeLists();
+    await saveLifeLists([...lifeLists, lifeList]);
+  }
+
+  Future<void> updateLifeList(LifeList lifeList) async {
+    final lifeLists = await loadLifeLists();
+    final nextLifeLists = lifeLists.map((entry) {
+      return entry.id == lifeList.id ? lifeList : entry;
+    }).toList();
+    await saveLifeLists(nextLifeLists);
+  }
+
+  Future<void> deleteLifeList(String id) async {
+    final lifeLists = await loadLifeLists();
+    final nextLifeLists = lifeLists.where((entry) => entry.id != id).toList();
+    await saveLifeLists(nextLifeLists);
+  }
+
   Future<String> exportBackupJson() async {
     final dailyRecords = await loadDailyRecords();
     final anniversaries = await loadAnniversaries();
+    final lifeLists = await loadLifeLists();
     final userProfile = await loadUserProfile();
     final appSettings = await loadAppSettings();
 
@@ -204,6 +264,7 @@ class LocalStorageService {
         (dateKey, record) => MapEntry(dateKey, record.toJson()),
       ),
       'anniversaries': anniversaries.map((entry) => entry.toJson()).toList(),
+      'lifeLists': lifeLists.map((entry) => entry.toJson()).toList(),
       'userProfile': userProfile.toJson(),
       'appSettings': appSettings.toJson(),
     };

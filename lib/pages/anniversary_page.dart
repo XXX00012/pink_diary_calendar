@@ -83,6 +83,7 @@ class _AnniversaryPageState extends State<AnniversaryPage> {
             title: '重要的日子',
             subtitle: '把值得期待的日子，轻轻放在这里',
             icon: Icons.favorite_rounded,
+            iconColor: AppColors.rose,
           ),
           const SizedBox(height: 18),
           if (_isLoading)
@@ -175,7 +176,7 @@ class _EmptyAnniversaryState extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           Text(
-            '还没有重要日子，添加一个想被记住的瞬间吧',
+            '还没有显示记录的重要日子\n添加一个想被记住的瞬间吧',
             textAlign: TextAlign.center,
             style: textTheme.titleMedium?.copyWith(height: 1.5),
           ),

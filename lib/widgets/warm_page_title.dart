@@ -8,17 +8,19 @@ class WarmPageTitle extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     super.key,
+    this.iconColor,
   });
 
   final String title;
   final String subtitle;
   final IconData icon;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final warmColors = Theme.of(context).extension<WarmThemeColors>();
-    final primary = warmColors?.primary ?? AppColors.roseDeep;
+    final primary = iconColor ?? warmColors?.primary ?? AppColors.roseDeep;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,

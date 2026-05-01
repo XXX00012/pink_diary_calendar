@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:pink_diary_calendar/models/anniversary.dart';
 import 'package:pink_diary_calendar/models/daily_record.dart';
+import 'package:pink_diary_calendar/models/life_list.dart';
 import 'package:pink_diary_calendar/pages/day_detail_page.dart';
+import 'package:pink_diary_calendar/pages/life_list_page.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
 import 'package:pink_diary_calendar/utils/anniversary_utils.dart';
@@ -26,9 +28,9 @@ class _CalendarPageState extends State<CalendarPage> {
 
   late DateTime _visibleMonth;
   late DateTime _selectedDate;
-  Set<String> _recordedDateKeys = {};
   Map<String, DailyRecord> _dailyRecords = {};
   List<Anniversary> _anniversaries = [];
+  List<LifeList> _lifeLists = [];
 
   @override
   void initState() {
@@ -59,33 +61,73 @@ class _CalendarPageState extends State<CalendarPage> {
     });
   }
 
+  Future<void> _pickVisibleMonth() async {
+    final pickedMonth = await showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MonthPickerSheet(visibleMonth: _visibleMonth),
+    );
+
+    if (!mounted || pickedMonth == null) {
+      return;
+    }
+
+    setState(() {
+      _visibleMonth = CalendarUtils.monthOnly(pickedMonth);
+    });
+  }
+
   Future<void> _loadCalendarMarkers() async {
     final dailyRecords = await _storageService.loadDailyRecords();
-    final recordedDateKeys = dailyRecords.entries
-        .where((entry) => entry.value.hasContent)
-        .map((entry) => entry.key)
-        .toSet();
     final anniversaries = await _storageService.loadAnniversaries();
+    final lifeLists = await _storageService.loadLifeLists();
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _recordedDateKeys = recordedDateKeys;
       _dailyRecords = dailyRecords;
       _anniversaries = anniversaries;
+      _lifeLists = lifeLists;
     });
   }
 
-  bool _hasCalendarMarker(DateTime date) {
+  _CalendarMarkerType _markerTypeFor(DateTime date) {
     final dateKey = CalendarUtils.formatDateKey(date);
-    if (_recordedDateKeys.contains(dateKey)) {
-      return true;
+    final today = CalendarUtils.dateOnly(DateTime.now());
+    final normalizedDate = CalendarUtils.dateOnly(date);
+    final record = _dailyRecords[dateKey];
+    final hasRecord = record?.hasContent ?? false;
+
+    if (hasRecord && normalizedDate.isBefore(today)) {
+      return _CalendarMarkerType.pastRecord;
     }
 
-    return _anniversaries.any(
+    if (normalizedDate.isAfter(today) && _hasFutureArrangement(record)) {
+      return _CalendarMarkerType.futurePlan;
+    }
+
+    final hasAnniversary = _anniversaries.any(
       (anniversary) => AnniversaryUtils.matchesCalendarDate(anniversary, date),
     );
+    if (hasAnniversary) {
+      return _CalendarMarkerType.anniversary;
+    }
+
+    if (hasRecord) {
+      return _CalendarMarkerType.record;
+    }
+
+    return _CalendarMarkerType.none;
+  }
+
+  bool _hasFutureArrangement(DailyRecord? record) {
+    if (record == null) {
+      return false;
+    }
+
+    return record.plans.isNotEmpty || record.text.trim().isNotEmpty;
   }
 
   Future<void> _openDayDetail(CalendarDay day) async {
@@ -115,6 +157,20 @@ class _CalendarPageState extends State<CalendarPage> {
         ..hideCurrentSnackBar()
         ..showSnackBar(const SnackBar(content: Text('这一天已经被好好收藏啦')));
     }
+  }
+
+  Future<void> _openLifeListPage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LifeListPage(storageService: _storageService),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    await _loadCalendarMarkers();
   }
 
   _RecentPlan? _findRecentPlan() {
@@ -167,11 +223,12 @@ class _CalendarPageState extends State<CalendarPage> {
   Widget build(BuildContext context) {
     final days = CalendarUtils.buildMonthGrid(_visibleMonth);
     final recentPlan = _findRecentPlan();
+    final lifeListSubtitle = _lifeListSubtitle();
 
     return WarmPageScaffold(
       child: ListView(
         key: const PageStorageKey('calendar-page'),
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 128),
         children: [
           const WarmPageTitle(
             title: '暖桃日记',
@@ -180,26 +237,28 @@ class _CalendarPageState extends State<CalendarPage> {
           ),
           const SizedBox(height: 18),
           WarmCard(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             child: Column(
               children: [
                 _MonthSwitcher(
                   title: CalendarUtils.formatYearMonth(_visibleMonth),
                   onPrevious: _showPreviousMonth,
                   onNext: _showNextMonth,
+                  onTitleTap: _pickVisibleMonth,
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 14),
                 _WeekdayRow(labels: _weekdayLabels),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 GridView.builder(
+                  padding: EdgeInsets.zero,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: days.length,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 7,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 0.86,
+                    mainAxisSpacing: 18,
+                    crossAxisSpacing: 6,
+                    childAspectRatio: 1,
                   ),
                   itemBuilder: (context, index) {
                     final day = days[index];
@@ -212,11 +271,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         day.date,
                         _selectedDate,
                       ),
-                      hasRecord:
-                          _recordedDateKeys.contains(
-                            CalendarUtils.formatDateKey(day.date),
-                          ) ||
-                          _hasCalendarMarker(day.date),
+                      markerType: _markerTypeFor(day.date),
                       onTap: () {
                         _openDayDetail(day);
                       },
@@ -233,11 +288,34 @@ class _CalendarPageState extends State<CalendarPage> {
                 ? null
                 : () => _openDateDetail(recentPlan.date),
           ),
+          const SizedBox(height: 12),
+          _LifeListHomeCard(
+            subtitle: lifeListSubtitle,
+            onTap: _openLifeListPage,
+          ),
         ],
       ),
     );
   }
+
+  String _lifeListSubtitle() {
+    if (_lifeLists.isEmpty) {
+      return '购物、学习、旅行，都可以慢慢整理';
+    }
+
+    final unfinishedCount = _lifeLists.fold<int>(
+      0,
+      (count, list) => count + list.unfinishedCount,
+    );
+    if (unfinishedCount > 0) {
+      return '还有 $unfinishedCount 个小计划待完成';
+    }
+
+    return '今天的清单都整理好啦';
+  }
 }
+
+enum _CalendarMarkerType { none, pastRecord, futurePlan, anniversary, record }
 
 class _RecentPlan {
   const _RecentPlan({
@@ -340,16 +418,198 @@ class _RecentPlanCard extends StatelessWidget {
   }
 }
 
+class _LifeListHomeCard extends StatelessWidget {
+  const _LifeListHomeCard({required this.subtitle, required this.onTap});
+
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(28),
+      onTap: onTap,
+      child: WarmCard(
+        color: const Color(0xFFEFF8FF).withValues(alpha: 0.52),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.milk.withValues(alpha: 0.84),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.checklist_rounded,
+                color: AppColors.lavenderDeep,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('生活清单', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 5),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.muted.withValues(alpha: 0.62),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthPickerSheet extends StatefulWidget {
+  const _MonthPickerSheet({required this.visibleMonth});
+
+  final DateTime visibleMonth;
+
+  @override
+  State<_MonthPickerSheet> createState() => _MonthPickerSheetState();
+}
+
+class _MonthPickerSheetState extends State<_MonthPickerSheet> {
+  late int _selectedYear;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedYear = widget.visibleMonth.year;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+        decoration: const BoxDecoration(
+          color: AppColors.milk,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.line,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  _RoundIconButton(
+                    icon: Icons.chevron_left_rounded,
+                    tooltip: '上一年',
+                    onPressed: () => setState(() => _selectedYear--),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '$_selectedYear 年',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  _RoundIconButton(
+                    icon: Icons.chevron_right_rounded,
+                    tooltip: '下一年',
+                    onPressed: () => setState(() => _selectedYear++),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 12,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 1.55,
+                ),
+                itemBuilder: (context, index) {
+                  final month = index + 1;
+                  final selected =
+                      _selectedYear == widget.visibleMonth.year &&
+                      month == widget.visibleMonth.month;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(DateTime(_selectedYear, month)),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.blush.withValues(alpha: 0.95)
+                            : AppColors.cream.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: selected
+                              ? AppColors.roseDeep
+                              : AppColors.line.withValues(alpha: 0.75),
+                        ),
+                      ),
+                      child: Text(
+                        '$month 月',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: AppColors.ink,
+                              fontWeight: selected
+                                  ? FontWeight.w900
+                                  : FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MonthSwitcher extends StatelessWidget {
   const _MonthSwitcher({
     required this.title,
     required this.onPrevious,
     required this.onNext,
+    required this.onTitleTap,
   });
 
   final String title;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+  final VoidCallback onTitleTap;
 
   @override
   Widget build(BuildContext context) {
@@ -362,13 +622,20 @@ class _MonthSwitcher extends StatelessWidget {
           onPressed: onPrevious,
         ),
         Expanded(
-          child: Text(
-            title,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: AppColors.ink,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: onTitleTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.ink,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
           ),
         ),
@@ -446,14 +713,14 @@ class _CalendarDayCell extends StatelessWidget {
   const _CalendarDayCell({
     required this.day,
     required this.isSelected,
-    required this.hasRecord,
+    required this.markerType,
     required this.onTap,
     super.key,
   });
 
   final CalendarDay day;
   final bool isSelected;
-  final bool hasRecord;
+  final _CalendarMarkerType markerType;
   final VoidCallback onTap;
 
   @override
@@ -495,17 +762,22 @@ class _CalendarDayCell extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Text(
-                '${day.date.day}',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 15,
-                  fontWeight: isSelected || day.isToday
-                      ? FontWeight.w800
-                      : FontWeight.w600,
+              Align(
+                alignment: markerType == _CalendarMarkerType.none
+                    ? Alignment.center
+                    : const Alignment(0, -0.34),
+                child: Text(
+                  '${day.date.day}',
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 15,
+                    fontWeight: isSelected || day.isToday
+                        ? FontWeight.w800
+                        : FontWeight.w600,
+                  ),
                 ),
               ),
-              if (day.isToday)
+              if (day.isToday && markerType == _CalendarMarkerType.none)
                 Positioned(
                   bottom: 7,
                   child: Container(
@@ -519,21 +791,54 @@ class _CalendarDayCell extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (hasRecord)
-                Positioned(
-                  top: 6,
-                  right: 7,
-                  child: Icon(
-                    Icons.favorite_rounded,
-                    size: 9,
-                    color: isSelected
-                        ? AppColors.ink.withValues(alpha: 0.92)
-                        : AppColors.roseDeep.withValues(alpha: 0.72),
-                  ),
-                ),
+              _CalendarMarker(markerType: markerType, isSelected: isSelected),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CalendarMarker extends StatelessWidget {
+  const _CalendarMarker({required this.markerType, required this.isSelected});
+
+  final _CalendarMarkerType markerType;
+  final bool isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (markerType == _CalendarMarkerType.none) {
+      return const SizedBox.shrink();
+    }
+
+    final icon = switch (markerType) {
+      _CalendarMarkerType.pastRecord => Icons.check_rounded,
+      _CalendarMarkerType.futurePlan => Icons.favorite_rounded,
+      _CalendarMarkerType.anniversary => Icons.circle,
+      _CalendarMarkerType.record => Icons.favorite_rounded,
+      _CalendarMarkerType.none => Icons.circle,
+    };
+    final color = switch (markerType) {
+      _CalendarMarkerType.pastRecord => const Color(0xFF5FA86F),
+      _CalendarMarkerType.futurePlan => AppColors.roseDeep,
+      _CalendarMarkerType.anniversary => AppColors.lavenderDeep,
+      _CalendarMarkerType.record => AppColors.roseDeep,
+      _CalendarMarkerType.none => AppColors.muted,
+    };
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 3,
+      child: Icon(
+        icon,
+        size: switch (markerType) {
+          _CalendarMarkerType.pastRecord => 13,
+          _CalendarMarkerType.anniversary => 5,
+          _ => 10,
+        },
+        color: color.withValues(alpha: isSelected ? 0.96 : 0.86),
       ),
     );
   }

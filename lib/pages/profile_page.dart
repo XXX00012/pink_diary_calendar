@@ -112,14 +112,12 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 14),
           _SettingGroup(
-            title: '提醒设置',
+            title: '通知设置',
             children: [
               _SettingEntry(
                 icon: Icons.notifications_none_rounded,
-                title: '每日提醒',
-                description: _settings.reminderEnabled
-                    ? '已开启：每日 ${_settings.dailyReminderTime}'
-                    : '未开启，点这里设置是否需要提醒',
+                title: '纪念日提醒',
+                description: _notificationDescription(),
                 onTap: () => _openPage(
                   ReminderSettingsPage(
                     settings: _settings,
@@ -132,6 +130,16 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
     );
+  }
+
+  String _notificationDescription() {
+    if (!_settings.anniversaryNotificationEnabled) {
+      return '未开启';
+    }
+    if (!_settings.notificationPermissionGranted) {
+      return '系统通知权限未开启';
+    }
+    return '每日 ${_settings.anniversaryReminderTime} 提醒重要日子';
   }
 }
 
