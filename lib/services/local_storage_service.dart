@@ -190,4 +190,24 @@ class LocalStorageService {
       settings.copyWith(themeKey: themeKey, updatedAt: now),
     );
   }
+
+  Future<String> exportBackupJson() async {
+    final dailyRecords = await loadDailyRecords();
+    final anniversaries = await loadAnniversaries();
+    final userProfile = await loadUserProfile();
+    final appSettings = await loadAppSettings();
+
+    final payload = {
+      'appName': '暖桃日记',
+      'exportedAt': DateTime.now().toIso8601String(),
+      'dailyRecords': dailyRecords.map(
+        (dateKey, record) => MapEntry(dateKey, record.toJson()),
+      ),
+      'anniversaries': anniversaries.map((entry) => entry.toJson()).toList(),
+      'userProfile': userProfile.toJson(),
+      'appSettings': appSettings.toJson(),
+    };
+
+    return const JsonEncoder.withIndent('  ').convert(payload);
+  }
 }

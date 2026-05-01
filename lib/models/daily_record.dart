@@ -5,7 +5,7 @@ class DailyRecord {
     required this.updatedAt,
     this.images = const [],
     this.expenses = const [],
-    this.littleJoys = const [],
+    this.plans = const [],
     this.reminders = const [],
   });
 
@@ -14,15 +14,12 @@ class DailyRecord {
   final DateTime updatedAt;
   final List<String> images;
   final List<ExpenseEntry> expenses;
-  final List<LittleJoyEntry> littleJoys;
+  final List<PlanEntry> plans;
   final List<dynamic> reminders;
 
   bool get hasText => text.trim().isNotEmpty;
   bool get hasContent =>
-      hasText ||
-      images.isNotEmpty ||
-      expenses.isNotEmpty ||
-      littleJoys.isNotEmpty;
+      hasText || images.isNotEmpty || expenses.isNotEmpty || plans.isNotEmpty;
 
   Map<String, dynamic> toJson() {
     return {
@@ -31,7 +28,8 @@ class DailyRecord {
       'updatedAt': updatedAt.toIso8601String(),
       'images': images,
       'expenses': expenses.map((entry) => entry.toJson()).toList(),
-      'littleJoys': littleJoys.map((entry) => entry.toJson()).toList(),
+      'plans': plans.map((entry) => entry.toJson()).toList(),
+      'littleJoys': const [],
       'reminders': reminders,
     };
   }
@@ -45,8 +43,8 @@ class DailyRecord {
           DateTime.fromMillisecondsSinceEpoch(0),
       images: _readStringList(json['images']),
       expenses: _readExpenseEntries(json['expenses']),
-      littleJoys: _readLittleJoyEntries(json['littleJoys']),
-      reminders: json['reminders'] as List<dynamic>? ?? const [],
+      plans: _readPlanEntries(json['plans'], json['littleJoys']),
+      reminders: _readDynamicList(json['reminders']),
     );
   }
 
@@ -55,6 +53,13 @@ class DailyRecord {
       return const [];
     }
     return value.whereType<String>().toList();
+  }
+
+  static List<dynamic> _readDynamicList(Object? value) {
+    if (value is! List) {
+      return const [];
+    }
+    return List<dynamic>.from(value);
   }
 
   static List<ExpenseEntry> _readExpenseEntries(Object? value) {
@@ -68,16 +73,21 @@ class DailyRecord {
         .toList();
   }
 
-  static List<LittleJoyEntry> _readLittleJoyEntries(Object? value) {
-    if (value is! List) {
-      return const [];
+  static List<PlanEntry> _readPlanEntries(Object? plans, Object? littleJoys) {
+    final planSource = plans is List ? plans : const [];
+    final planEntries = planSource
+        .whereType<Map>()
+        .map((entry) => PlanEntry.fromJson(Map<String, dynamic>.from(entry)))
+        .toList();
+
+    if (planEntries.isNotEmpty || littleJoys is! List) {
+      return planEntries;
     }
 
-    return value
+    return littleJoys
         .whereType<Map>()
-        .map(
-          (entry) => LittleJoyEntry.fromJson(Map<String, dynamic>.from(entry)),
-        )
+        .map((entry) => PlanEntry.fromLegacyLittleJoy(entry))
+        .where((entry) => entry.text.trim().isNotEmpty)
         .toList();
   }
 }
@@ -126,28 +136,53 @@ class ExpenseEntry {
   }
 }
 
-class LittleJoyEntry {
-  const LittleJoyEntry({
+class PlanEntry {
+  const PlanEntry({
     required this.id,
     required this.text,
+    required this.note,
     required this.createdAt,
   });
 
   final String id;
   final String text;
+  final String note;
   final DateTime createdAt;
 
   Map<String, dynamic> toJson() {
-    return {'id': id, 'text': text, 'createdAt': createdAt.toIso8601String()};
+    return {
+      'id': id,
+      'text': text,
+      'note': note,
+      'createdAt': createdAt.toIso8601String(),
+    };
   }
 
-  factory LittleJoyEntry.fromJson(Map<String, dynamic> json) {
-    return LittleJoyEntry(
+  factory PlanEntry.fromJson(Map<String, dynamic> json) {
+    return PlanEntry(
       id: json['id'] as String? ?? '',
       text: json['text'] as String? ?? '',
+      note: json['note'] as String? ?? '',
       createdAt:
           DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
+    );
+  }
+
+  factory PlanEntry.fromLegacyLittleJoy(Map<dynamic, dynamic> json) {
+    final normalizedJson = Map<String, dynamic>.from(json);
+    final text = normalizedJson['text'] as String? ?? '';
+    final createdAt =
+        DateTime.tryParse(normalizedJson['createdAt'] as String? ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    final id = normalizedJson['id'] as String?;
+    return PlanEntry(
+      id: id == null || id.isEmpty
+          ? 'legacy-plan-${createdAt.microsecondsSinceEpoch}-${text.hashCode}'
+          : id,
+      text: text,
+      note: '',
+      createdAt: createdAt,
     );
   }
 }

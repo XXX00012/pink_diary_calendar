@@ -10,6 +10,8 @@ import 'package:pink_diary_calendar/utils/calendar_utils.dart';
 import 'package:pink_diary_calendar/widgets/warm_card.dart';
 import 'package:pink_diary_calendar/widgets/warm_page_scaffold.dart';
 
+enum _DateRelation { past, today, future }
+
 class DayDetailPage extends StatefulWidget {
   const DayDetailPage({
     required this.date,
@@ -25,15 +27,26 @@ class DayDetailPage extends StatefulWidget {
 }
 
 class _DayDetailPageState extends State<DayDetailPage> {
-  static const List<String> _prompts = [
+  static const List<String> _todayPrompts = [
     '今天想留下些什么？',
     '一句话也可以。',
     '把今天轻轻放在这里吧。',
-    '今天有没有一个值得记住的小瞬间？',
-    '未来的这一天，想提醒自己什么？',
     '不用写很多，几个词也可以。',
-    '今天的空白，也可以被温柔保存。',
     '写给今天的自己一句话吧。',
+  ];
+
+  static const List<String> _pastPrompts = [
+    '那一天有什么想补上的记忆？',
+    '把那天的一点温柔补写下来吧。',
+    '迟一点记录，也一样值得被收藏。',
+    '有没有一个后来才想起的小瞬间？',
+  ];
+
+  static const List<String> _futurePrompts = [
+    '未来的这一天，想安排什么？',
+    '给未来的自己留一张小纸条吧。',
+    '这一天有什么期待？',
+    '先把计划轻轻放在这里吧。',
   ];
 
   final ImagePicker _imagePicker = ImagePicker();
@@ -46,16 +59,44 @@ class _DayDetailPageState extends State<DayDetailPage> {
   DailyRecord? _record;
   List<String> _images = [];
   List<ExpenseEntry> _expenses = [];
-  List<LittleJoyEntry> _littleJoys = [];
+  List<PlanEntry> _plans = [];
   bool _isLoading = true;
   bool _isSaving = false;
+
+  _DateRelation get _dateRelation {
+    final today = CalendarUtils.dateOnly(DateTime.now());
+    if (_date.isBefore(today)) {
+      return _DateRelation.past;
+    }
+    if (_date.isAfter(today)) {
+      return _DateRelation.future;
+    }
+    return _DateRelation.today;
+  }
+
+  List<String> get _activePrompts {
+    return switch (_dateRelation) {
+      _DateRelation.past => _pastPrompts,
+      _DateRelation.today => _todayPrompts,
+      _DateRelation.future => _futurePrompts,
+    };
+  }
+
+  String get _inputHint {
+    return switch (_dateRelation) {
+      _DateRelation.past => '补写那一天想留下的记忆……',
+      _DateRelation.today => '写下今天想留下的任何事情……',
+      _DateRelation.future => '写下这一天的计划或期待……',
+    };
+  }
 
   @override
   void initState() {
     super.initState();
     _date = CalendarUtils.dateOnly(widget.date);
     _dateKey = CalendarUtils.formatDateKey(_date);
-    _promptIndex = (_date.year + _date.month + _date.day) % _prompts.length;
+    _promptIndex =
+        (_date.year + _date.month + _date.day) % _activePrompts.length;
     _loadRecord();
   }
 
@@ -76,14 +117,14 @@ class _DayDetailPageState extends State<DayDetailPage> {
       _controller.text = record?.text ?? '';
       _images = List<String>.from(record?.images ?? const []);
       _expenses = List<ExpenseEntry>.from(record?.expenses ?? const []);
-      _littleJoys = List<LittleJoyEntry>.from(record?.littleJoys ?? const []);
+      _plans = List<PlanEntry>.from(record?.plans ?? const []);
       _isLoading = false;
     });
   }
 
   void _changePrompt() {
     setState(() {
-      _promptIndex = (_promptIndex + 1) % _prompts.length;
+      _promptIndex = (_promptIndex + 1) % _activePrompts.length;
     });
   }
 
@@ -108,9 +149,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('图片选择失败，请稍后再试')));
+      _showSnackBar('图片选择失败，请稍后再试');
     }
   }
 
@@ -147,178 +186,36 @@ class _DayDetailPageState extends State<DayDetailPage> {
   }
 
   Future<void> _showExpenseSheet() async {
-    final amountController = TextEditingController();
-    final noteController = TextEditingController();
-    var selectedType = 'expense';
-
-    await showModalBottomSheet<void>(
+    final entry = await showModalBottomSheet<ExpenseEntry>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final inset = MediaQuery.viewInsetsOf(sheetContext).bottom;
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return _WarmBottomSheet(
-              bottomInset: inset,
-              title: '记一笔',
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _TypeChoice(
-                          label: '支出',
-                          selected: selectedType == 'expense',
-                          onTap: () {
-                            setSheetState(() => selectedType = 'expense');
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _TypeChoice(
-                          label: '收入',
-                          selected: selectedType == 'income',
-                          onTap: () {
-                            setSheetState(() => selectedType = 'income');
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: amountController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: _softInputDecoration('金额'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: noteController,
-                    decoration: _softInputDecoration('说明，可以留空'),
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final amount = double.tryParse(
-                          amountController.text.trim(),
-                        );
-                        if (amount == null || amount <= 0) {
-                          ScaffoldMessenger.of(context)
-                            ..hideCurrentSnackBar()
-                            ..showSnackBar(
-                              const SnackBar(content: Text('请输入正确的金额')),
-                            );
-                          return;
-                        }
-
-                        final entry = ExpenseEntry(
-                          id: _newEntryId('expense'),
-                          amount: amount,
-                          note: noteController.text.trim(),
-                          type: selectedType,
-                          createdAt: DateTime.now(),
-                        );
-                        setState(() {
-                          _expenses = [..._expenses, entry];
-                        });
-                        Navigator.of(sheetContext).pop();
-                      },
-                      child: const Text('确定'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      builder: (_) =>
+          _ExpenseInputSheet(onCreateId: () => _newEntryId('expense')),
     );
 
-    amountController.dispose();
-    noteController.dispose();
+    if (!mounted || entry == null) {
+      return;
+    }
+    setState(() {
+      _expenses = [..._expenses, entry];
+    });
   }
 
-  Future<void> _showLittleJoySheet() async {
-    final joyController = TextEditingController();
-
-    await showModalBottomSheet<void>(
+  Future<void> _showPlanSheet() async {
+    final entry = await showModalBottomSheet<PlanEntry>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final inset = MediaQuery.viewInsetsOf(sheetContext).bottom;
-        return _WarmBottomSheet(
-          bottomInset: inset,
-          title: '小确幸',
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: joyController,
-                minLines: 4,
-                maxLines: 6,
-                decoration: _softInputDecoration('写下一件今天值得记住的小事吧'),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    final text = joyController.text.trim();
-                    if (text.isEmpty) {
-                      Navigator.of(sheetContext).pop();
-                      return;
-                    }
-
-                    final entry = LittleJoyEntry(
-                      id: _newEntryId('joy'),
-                      text: text,
-                      createdAt: DateTime.now(),
-                    );
-                    setState(() {
-                      _littleJoys = [..._littleJoys, entry];
-                    });
-                    Navigator.of(sheetContext).pop();
-                  },
-                  child: const Text('确定'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (_) => _PlanInputSheet(onCreateId: () => _newEntryId('plan')),
     );
 
-    joyController.dispose();
-  }
-
-  InputDecoration _softInputDecoration(String hintText) {
-    return InputDecoration(
-      hintText: hintText,
-      hintStyle: TextStyle(color: AppColors.muted.withValues(alpha: 0.72)),
-      filled: true,
-      fillColor: AppColors.cream.withValues(alpha: 0.72),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide(color: AppColors.line.withValues(alpha: 0.8)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide(color: AppColors.line.withValues(alpha: 0.8)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: AppColors.roseDeep, width: 1.2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    );
+    if (!mounted || entry == null) {
+      return;
+    }
+    setState(() {
+      _plans = [..._plans, entry];
+    });
   }
 
   String _newEntryId(String prefix) {
@@ -334,7 +231,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
       text: _controller.text,
       images: _images,
       expenses: _expenses,
-      littleJoys: _littleJoys,
+      plans: _plans,
       updatedAt: DateTime.now(),
     );
 
@@ -349,15 +246,20 @@ class _DayDetailPageState extends State<DayDetailPage> {
         return;
       }
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('保存失败，请稍后再试')));
+      _showSnackBar('保存失败，请稍后再试');
     }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final prompts = _activePrompts;
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -369,6 +271,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
           children: [
             _DetailHeader(
               date: _date,
+              relation: _dateRelation,
               onBack: () => Navigator.of(context).maybePop(),
             ),
             const SizedBox(height: 18),
@@ -378,7 +281,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _PromptBar(
-                    prompt: _prompts[_promptIndex],
+                    prompt: prompts[_promptIndex % prompts.length],
                     onChangePrompt: _changePrompt,
                   ),
                   if (_record != null) ...[
@@ -395,12 +298,14 @@ class _DayDetailPageState extends State<DayDetailPage> {
                   _PaperTextField(
                     controller: _controller,
                     enabled: !_isLoading && !_isSaving,
+                    hintText: _inputHint,
                   ),
                   const SizedBox(height: 16),
                   _QuickActionBar(
+                    highlightPlan: _dateRelation == _DateRelation.future,
                     onAddImage: _addImage,
                     onAddExpense: _showExpenseSheet,
-                    onAddLittleJoy: _showLittleJoySheet,
+                    onAddPlan: _showPlanSheet,
                   ),
                 ],
               ),
@@ -422,15 +327,13 @@ class _DayDetailPageState extends State<DayDetailPage> {
                 },
               ),
             ],
-            if (_littleJoys.isNotEmpty) ...[
+            if (_plans.isNotEmpty) ...[
               const SizedBox(height: 18),
-              _LittleJoySection(
-                littleJoys: _littleJoys,
+              _PlanSection(
+                plans: _plans,
                 onRemove: (id) {
                   setState(() {
-                    _littleJoys = _littleJoys
-                        .where((entry) => entry.id != id)
-                        .toList();
+                    _plans = _plans.where((entry) => entry.id != id).toList();
                   });
                 },
               ),
@@ -456,11 +359,219 @@ class _DayDetailPageState extends State<DayDetailPage> {
   }
 }
 
+class _ExpenseInputSheet extends StatefulWidget {
+  const _ExpenseInputSheet({required this.onCreateId});
+
+  final String Function() onCreateId;
+
+  @override
+  State<_ExpenseInputSheet> createState() => _ExpenseInputSheetState();
+}
+
+class _ExpenseInputSheetState extends State<_ExpenseInputSheet> {
+  final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _noteController = TextEditingController();
+  String _selectedType = 'expense';
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final amount = double.tryParse(_amountController.text.trim());
+    if (amount == null || amount <= 0) {
+      setState(() => _errorText = '请输入正确的金额');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop(
+      ExpenseEntry(
+        id: widget.onCreateId(),
+        amount: amount,
+        note: _noteController.text.trim(),
+        type: _selectedType,
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _WarmBottomSheet(
+      title: '记一笔',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _TypeChoice(
+                  label: '支出',
+                  selected: _selectedType == 'expense',
+                  onTap: () => setState(() => _selectedType = 'expense'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TypeChoice(
+                  label: '收入',
+                  selected: _selectedType == 'income',
+                  onTap: () => setState(() => _selectedType = 'income'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _amountController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) {
+              if (_errorText != null) {
+                setState(() => _errorText = null);
+              }
+            },
+            decoration: _softInputDecoration('金额'),
+          ),
+          if (_errorText != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _errorText!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.roseDeep,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          TextField(
+            controller: _noteController,
+            decoration: _softInputDecoration('说明，可以留空'),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(onPressed: _submit, child: const Text('确定')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanInputSheet extends StatefulWidget {
+  const _PlanInputSheet({required this.onCreateId});
+
+  final String Function() onCreateId;
+
+  @override
+  State<_PlanInputSheet> createState() => _PlanInputSheetState();
+}
+
+class _PlanInputSheetState extends State<_PlanInputSheet> {
+  final TextEditingController _textController = TextEditingController();
+  final TextEditingController _noteController = TextEditingController();
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _textController.text.trim();
+    if (text.isEmpty) {
+      setState(() => _errorText = '写下计划内容吧');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop(
+      PlanEntry(
+        id: widget.onCreateId(),
+        text: text,
+        note: _noteController.text.trim(),
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _WarmBottomSheet(
+      title: '添加计划',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _textController,
+            minLines: 3,
+            maxLines: 5,
+            onChanged: (_) {
+              if (_errorText != null) {
+                setState(() => _errorText = null);
+              }
+            },
+            decoration: _softInputDecoration('计划内容，例如：和朋友出去玩'),
+          ),
+          if (_errorText != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _errorText!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.roseDeep,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          TextField(
+            controller: _noteController,
+            minLines: 2,
+            maxLines: 4,
+            decoration: _softInputDecoration('备注，可以留空'),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(onPressed: _submit, child: const Text('确定')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DetailHeader extends StatelessWidget {
-  const _DetailHeader({required this.date, required this.onBack});
+  const _DetailHeader({
+    required this.date,
+    required this.relation,
+    required this.onBack,
+  });
 
   final DateTime date;
+  final _DateRelation relation;
   final VoidCallback onBack;
+
+  String get _eyebrow {
+    return switch (relation) {
+      _DateRelation.past => '补记这一页',
+      _DateRelation.today => '今日记录',
+      _DateRelation.future => '未来计划',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -477,7 +588,7 @@ class _DetailHeader extends StatelessWidget {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: AppColors.milk.withValues(alpha: 0.88),
+                color: AppColors.milk.withValues(alpha: 0.9),
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
               ),
@@ -495,13 +606,24 @@ class _DetailHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                CalendarUtils.formatMonthDayWithWeekday(date),
-                style: textTheme.headlineSmall,
+                _eyebrow,
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.roseDeep,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                CalendarUtils.formatFullDate(date),
+                style: textTheme.headlineSmall?.copyWith(color: AppColors.ink),
               ),
               const SizedBox(height: 5),
               Text(
-                CalendarUtils.formatFullDate(date),
-                style: textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                CalendarUtils.weekdayName(date),
+                style: textTheme.titleMedium?.copyWith(
+                  color: AppColors.muted,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -537,9 +659,11 @@ class _PromptBar extends StatelessWidget {
           Expanded(
             child: Text(
               prompt,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontSize: 15, height: 1.35),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: AppColors.ink,
+                fontSize: 15,
+                height: 1.35,
+              ),
             ),
           ),
           TextButton.icon(
@@ -559,10 +683,15 @@ class _PromptBar extends StatelessWidget {
 }
 
 class _PaperTextField extends StatelessWidget {
-  const _PaperTextField({required this.controller, required this.enabled});
+  const _PaperTextField({
+    required this.controller,
+    required this.enabled,
+    required this.hintText,
+  });
 
   final TextEditingController controller;
   final bool enabled;
+  final String hintText;
 
   @override
   Widget build(BuildContext context) {
@@ -604,7 +733,7 @@ class _PaperTextField extends StatelessWidget {
                 height: 1.65,
               ),
               decoration: InputDecoration(
-                hintText: '写下今天想留下的任何事情……',
+                hintText: hintText,
                 hintStyle: TextStyle(
                   color: AppColors.muted.withValues(alpha: 0.72),
                 ),
@@ -621,14 +750,16 @@ class _PaperTextField extends StatelessWidget {
 
 class _QuickActionBar extends StatelessWidget {
   const _QuickActionBar({
+    required this.highlightPlan,
     required this.onAddImage,
     required this.onAddExpense,
-    required this.onAddLittleJoy,
+    required this.onAddPlan,
   });
 
+  final bool highlightPlan;
   final VoidCallback onAddImage;
   final VoidCallback onAddExpense;
-  final VoidCallback onAddLittleJoy;
+  final VoidCallback onAddPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -647,9 +778,10 @@ class _QuickActionBar extends StatelessWidget {
           onTap: onAddExpense,
         ),
         _QuickActionButton(
-          icon: Icons.wb_sunny_outlined,
-          label: '小确幸',
-          onTap: onAddLittleJoy,
+          icon: Icons.event_note_outlined,
+          label: '添加计划',
+          highlighted: highlightPlan,
+          onTap: onAddPlan,
         ),
       ],
     );
@@ -661,22 +793,32 @@ class _QuickActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.highlighted = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
+    final foregroundColor = highlighted ? AppColors.ink : AppColors.roseDeep;
+
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 18),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.roseDeep,
-        backgroundColor: AppColors.milk.withValues(alpha: 0.74),
-        side: BorderSide(color: AppColors.line.withValues(alpha: 0.85)),
+        foregroundColor: foregroundColor,
+        backgroundColor: highlighted
+            ? AppColors.roseDeep
+            : AppColors.milk.withValues(alpha: 0.74),
+        side: BorderSide(
+          color: highlighted
+              ? AppColors.roseDeep
+              : AppColors.line.withValues(alpha: 0.85),
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
@@ -811,6 +953,7 @@ class _ExpenseTile extends StatelessWidget {
     final sign = entry.isIncome ? '+' : '-';
     final amountText = _formatAmount(entry.amount);
     final color = entry.isIncome ? AppColors.lavenderDeep : AppColors.roseDeep;
+    final typeLabel = entry.isIncome ? '记账 · 收入' : '记账 · 支出';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
@@ -832,21 +975,50 @@ class _ExpenseTile extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              entry.displayNote,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontSize: 15),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  typeLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.muted,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  entry.displayNote,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.ink,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
             ),
           ),
-          Text(
-            '$sign$amountText 元',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w800,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '金额',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.muted,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '$sign$amountText 元',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 8),
           _MiniDeleteButton(onTap: () => onRemove(entry.id)),
@@ -864,10 +1036,10 @@ class _ExpenseTile extends StatelessWidget {
   }
 }
 
-class _LittleJoySection extends StatelessWidget {
-  const _LittleJoySection({required this.littleJoys, required this.onRemove});
+class _PlanSection extends StatelessWidget {
+  const _PlanSection({required this.plans, required this.onRemove});
 
-  final List<LittleJoyEntry> littleJoys;
+  final List<PlanEntry> plans;
   final ValueChanged<String> onRemove;
 
   @override
@@ -877,12 +1049,12 @@ class _LittleJoySection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionTitle(icon: Icons.wb_sunny_rounded, title: '今日小确幸'),
+          const _SectionTitle(icon: Icons.event_note_rounded, title: '计划'),
           const SizedBox(height: 12),
-          ...littleJoys.map(
+          ...plans.map(
             (entry) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _LittleJoyTile(entry: entry, onRemove: onRemove),
+              child: _PlanTile(entry: entry, onRemove: onRemove),
             ),
           ),
         ],
@@ -891,10 +1063,10 @@ class _LittleJoySection extends StatelessWidget {
   }
 }
 
-class _LittleJoyTile extends StatelessWidget {
-  const _LittleJoyTile({required this.entry, required this.onRemove});
+class _PlanTile extends StatelessWidget {
+  const _PlanTile({required this.entry, required this.onRemove});
 
-  final LittleJoyEntry entry;
+  final PlanEntry entry;
   final ValueChanged<String> onRemove;
 
   @override
@@ -902,7 +1074,7 @@ class _LittleJoyTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(15, 14, 10, 14),
       decoration: BoxDecoration(
-        color: AppColors.lavender.withValues(alpha: 0.36),
+        color: AppColors.lavender.withValues(alpha: 0.34),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
       ),
@@ -910,19 +1082,34 @@ class _LittleJoyTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Icon(
-            Icons.auto_awesome_rounded,
+            Icons.event_available_rounded,
             color: AppColors.lavenderDeep,
             size: 20,
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              entry.text,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.ink,
-                height: 1.5,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '计划：${entry.text}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.ink,
+                    height: 1.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (entry.note.trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '备注：${entry.note}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.muted,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(width: 8),
@@ -945,7 +1132,13 @@ class _SectionTitle extends StatelessWidget {
       children: [
         Icon(icon, color: AppColors.roseDeep, size: 20),
         const SizedBox(width: 8),
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: AppColors.ink,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
       ],
     );
   }
@@ -1007,10 +1200,9 @@ class _TypeChoice extends StatelessWidget {
         child: Text(
           label,
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: selected ? Colors.white : AppColors.ink,
-            fontSize: 14,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(color: AppColors.ink, fontSize: 14),
         ),
       ),
     );
@@ -1018,18 +1210,15 @@ class _TypeChoice extends StatelessWidget {
 }
 
 class _WarmBottomSheet extends StatelessWidget {
-  const _WarmBottomSheet({
-    required this.bottomInset,
-    required this.title,
-    required this.child,
-  });
+  const _WarmBottomSheet({required this.title, required this.child});
 
-  final double bottomInset;
   final String title;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
@@ -1040,30 +1229,54 @@ class _WarmBottomSheet extends StatelessWidget {
         ),
         child: SafeArea(
           top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.line,
-                    borderRadius: BorderRadius.circular(99),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.line,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              child,
-            ],
+                const SizedBox(height: 18),
+                Text(title, style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                child,
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+InputDecoration _softInputDecoration(String hintText) {
+  return InputDecoration(
+    hintText: hintText,
+    hintStyle: TextStyle(color: AppColors.muted.withValues(alpha: 0.72)),
+    filled: true,
+    fillColor: AppColors.cream.withValues(alpha: 0.72),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(20),
+      borderSide: BorderSide(color: AppColors.line.withValues(alpha: 0.8)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(20),
+      borderSide: BorderSide(color: AppColors.line.withValues(alpha: 0.8)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(20),
+      borderSide: const BorderSide(color: AppColors.roseDeep, width: 1.2),
+    ),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  );
 }
 
 class _PaperLinePainter extends CustomPainter {

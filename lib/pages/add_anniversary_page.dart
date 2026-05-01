@@ -495,7 +495,7 @@ class _SoftChoiceChip extends StatelessWidget {
         child: Text(
           label,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: selected ? Colors.white : AppColors.ink,
+            color: AppColors.ink,
             fontWeight: FontWeight.w700,
           ),
         ),

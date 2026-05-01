@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
+import 'package:pink_diary_calendar/theme/app_theme.dart';
 
 class WarmPageScaffold extends StatelessWidget {
   const WarmPageScaffold({required this.child, super.key});
@@ -8,11 +9,19 @@ class WarmPageScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return DecoratedBox(
-      decoration: const BoxDecoration(gradient: AppColors.pageGradient),
+      decoration: BoxDecoration(
+        gradient: warmColors?.pageGradient ?? AppColors.pageGradient,
+      ),
       child: Stack(
         children: [
-          const _SoftDecorations(),
+          _SoftDecorations(
+            primary: warmColors?.primary ?? AppColors.roseDeep,
+            secondary: warmColors?.secondary ?? AppColors.lavenderDeep,
+            soft: warmColors?.soft ?? AppColors.blush,
+          ),
           SafeArea(
             bottom: false,
             child: Center(
@@ -29,7 +38,15 @@ class WarmPageScaffold extends StatelessWidget {
 }
 
 class _SoftDecorations extends StatelessWidget {
-  const _SoftDecorations();
+  const _SoftDecorations({
+    required this.primary,
+    required this.secondary,
+    required this.soft,
+  });
+
+  final Color primary;
+  final Color secondary;
+  final Color soft;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +58,7 @@ class _SoftDecorations extends StatelessWidget {
             right: 28,
             child: Icon(
               Icons.auto_awesome_rounded,
-              color: AppColors.butter.withValues(alpha: 0.85),
+              color: secondary.withValues(alpha: 0.36),
               size: 28,
             ),
           ),
@@ -50,7 +67,7 @@ class _SoftDecorations extends StatelessWidget {
             left: 22,
             child: Icon(
               Icons.favorite_rounded,
-              color: AppColors.rose.withValues(alpha: 0.22),
+              color: primary.withValues(alpha: 0.18),
               size: 34,
             ),
           ),
@@ -59,7 +76,7 @@ class _SoftDecorations extends StatelessWidget {
             right: 34,
             child: Icon(
               Icons.nightlight_round,
-              color: AppColors.lavenderDeep.withValues(alpha: 0.2),
+              color: secondary.withValues(alpha: 0.2),
               size: 36,
             ),
           ),
@@ -70,7 +87,7 @@ class _SoftDecorations extends StatelessWidget {
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: AppColors.sage.withValues(alpha: 0.6),
+                color: soft.withValues(alpha: 0.9),
                 shape: BoxShape.circle,
               ),
             ),

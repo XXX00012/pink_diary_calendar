@@ -51,7 +51,7 @@ class AnniversaryUtils {
   static const List<AnniversaryThemeOption> themeOptions = [
     AnniversaryThemeOption(
       id: 'blush',
-      label: '奶油粉',
+      label: '默认粉',
       color: AppColors.roseDeep,
       softColor: AppColors.blush,
     ),
@@ -80,9 +80,21 @@ class AnniversaryUtils {
       softColor: Color(0xFFF0FAF2),
     ),
     AnniversaryThemeOption(
+      id: 'butter',
+      label: '奶油黄',
+      color: Color(0xFFD4AA4C),
+      softColor: Color(0xFFFFF7D8),
+    ),
+    AnniversaryThemeOption(
+      id: 'blue',
+      label: '浅蓝色',
+      color: Color(0xFF78A4C7),
+      softColor: Color(0xFFEFF8FF),
+    ),
+    AnniversaryThemeOption(
       id: 'milk',
-      label: '奶白',
-      color: AppColors.butter,
+      label: '奶油白',
+      color: Color(0xFFC7A978),
       softColor: AppColors.milk,
     ),
   ];
@@ -215,6 +227,11 @@ class AnniversaryUtils {
       return firstDistance.compareTo(secondDistance);
     });
     return sorted;
+  }
+
+  static bool isOneTimePast(Anniversary anniversary, {DateTime? today}) {
+    return !anniversary.repeatYearly &&
+        dateInfo(anniversary, today: today).isPast;
   }
 
   static String reminderLabel(int days) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pink_diary_calendar/models/anniversary.dart';
+import 'package:pink_diary_calendar/models/daily_record.dart';
 import 'package:pink_diary_calendar/pages/day_detail_page.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
@@ -26,6 +27,7 @@ class _CalendarPageState extends State<CalendarPage> {
   late DateTime _visibleMonth;
   late DateTime _selectedDate;
   Set<String> _recordedDateKeys = {};
+  Map<String, DailyRecord> _dailyRecords = {};
   List<Anniversary> _anniversaries = [];
 
   @override
@@ -58,7 +60,11 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _loadCalendarMarkers() async {
-    final recordedDateKeys = await _storageService.loadRecordedDateKeys();
+    final dailyRecords = await _storageService.loadDailyRecords();
+    final recordedDateKeys = dailyRecords.entries
+        .where((entry) => entry.value.hasContent)
+        .map((entry) => entry.key)
+        .toSet();
     final anniversaries = await _storageService.loadAnniversaries();
     if (!mounted) {
       return;
@@ -66,6 +72,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
     setState(() {
       _recordedDateKeys = recordedDateKeys;
+      _dailyRecords = dailyRecords;
       _anniversaries = anniversaries;
     });
   }
@@ -82,15 +89,19 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _openDayDetail(CalendarDay day) async {
+    await _openDateDetail(day.date);
+  }
+
+  Future<void> _openDateDetail(DateTime date) async {
     setState(() {
-      _selectedDate = CalendarUtils.dateOnly(day.date);
-      _visibleMonth = CalendarUtils.monthOnly(day.date);
+      _selectedDate = CalendarUtils.dateOnly(date);
+      _visibleMonth = CalendarUtils.monthOnly(date);
     });
 
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) =>
-            DayDetailPage(date: day.date, storageService: _storageService),
+            DayDetailPage(date: date, storageService: _storageService),
       ),
     );
 
@@ -106,9 +117,56 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
+  _RecentPlan? _findRecentPlan() {
+    final today = CalendarUtils.dateOnly(DateTime.now());
+    final candidates = <_RecentPlan>[];
+
+    for (final entry in _dailyRecords.entries) {
+      final date = AnniversaryUtils.parseDateKey(entry.key);
+      if (date == null || !date.isAfter(today)) {
+        continue;
+      }
+
+      final record = entry.value;
+      PlanEntry? firstPlan;
+      for (final plan in record.plans) {
+        if (plan.text.trim().isNotEmpty) {
+          firstPlan = plan;
+          break;
+        }
+      }
+
+      if (firstPlan != null) {
+        candidates.add(
+          _RecentPlan(
+            date: date,
+            title: firstPlan.text.trim(),
+            note: firstPlan.note.trim(),
+          ),
+        );
+        continue;
+      }
+
+      final text = record.text.trim();
+      if (text.isNotEmpty) {
+        candidates.add(
+          _RecentPlan(
+            date: date,
+            title: text.split('\n').first.trim(),
+            note: '',
+          ),
+        );
+      }
+    }
+
+    candidates.sort((first, second) => first.date.compareTo(second.date));
+    return candidates.isEmpty ? null : candidates.first;
+  }
+
   @override
   Widget build(BuildContext context) {
     final days = CalendarUtils.buildMonthGrid(_visibleMonth);
+    final recentPlan = _findRecentPlan();
 
     return WarmPageScaffold(
       child: ListView(
@@ -116,7 +174,7 @@ class _CalendarPageState extends State<CalendarPage> {
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
         children: [
           const WarmPageTitle(
-            title: '暖桃日历',
+            title: '暖桃日记',
             subtitle: '记录过去，书写今天，安排未来',
             icon: Icons.calendar_month_rounded,
           ),
@@ -169,46 +227,114 @@ class _CalendarPageState extends State<CalendarPage> {
             ),
           ),
           const SizedBox(height: 16),
-          WarmCard(
-            color: AppColors.blush.withValues(alpha: 0.74),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.edit_calendar_rounded,
-                    color: AppColors.roseDeep,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '选中的日子',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        CalendarUtils.formatFullDate(_selectedDate),
-                        key: const ValueKey('selected-date-label'),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          _RecentPlanCard(
+            plan: recentPlan,
+            onTap: recentPlan == null
+                ? null
+                : () => _openDateDetail(recentPlan.date),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RecentPlan {
+  const _RecentPlan({
+    required this.date,
+    required this.title,
+    required this.note,
+  });
+
+  final DateTime date;
+  final String title;
+  final String note;
+}
+
+class _RecentPlanCard extends StatelessWidget {
+  const _RecentPlanCard({required this.plan, required this.onTap});
+
+  final _RecentPlan? plan;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentPlan = plan;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(28),
+      onTap: onTap,
+      child: WarmCard(
+        color: AppColors.lavender.withValues(alpha: 0.28),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.82),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.event_note_rounded,
+                color: AppColors.lavenderDeep,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('最近计划', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 5),
+                  if (currentPlan == null) ...[
+                    Text(
+                      '暂时还没有未来计划',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.muted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '想给未来的某一天留个安排吗？',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                    ),
+                  ] else ...[
+                    Text(
+                      '${CalendarUtils.formatMonthDay(currentPlan.date)}：${currentPlan.title}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (currentPlan.note.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        currentPlan.note,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                      ),
+                    ],
+                  ],
+                ],
+              ),
+            ),
+            if (currentPlan != null)
+              Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.muted.withValues(alpha: 0.62),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -239,7 +365,11 @@ class _MonthSwitcher extends StatelessWidget {
           child: Text(
             title,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: AppColors.ink,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
         _RoundIconButton(
@@ -329,7 +459,7 @@ class _CalendarDayCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textColor = switch ((isSelected, day.isCurrentMonth)) {
-      (true, _) => Colors.white,
+      (true, _) => AppColors.ink,
       (false, true) => AppColors.ink,
       (false, false) => AppColors.muted.withValues(alpha: 0.48),
     };
@@ -382,7 +512,9 @@ class _CalendarDayCell extends StatelessWidget {
                     width: 5,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: isSelected ? Colors.white : AppColors.lavenderDeep,
+                      color: isSelected
+                          ? AppColors.ink
+                          : AppColors.lavenderDeep,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -395,7 +527,7 @@ class _CalendarDayCell extends StatelessWidget {
                     Icons.favorite_rounded,
                     size: 9,
                     color: isSelected
-                        ? Colors.white.withValues(alpha: 0.92)
+                        ? AppColors.ink.withValues(alpha: 0.92)
                         : AppColors.roseDeep.withValues(alpha: 0.72),
                   ),
                 ),

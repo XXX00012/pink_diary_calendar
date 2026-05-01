@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pink_diary_calendar/models/app_settings.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
+import 'package:pink_diary_calendar/theme/theme_controller.dart';
 import 'package:pink_diary_calendar/utils/profile_theme_utils.dart';
 import 'package:pink_diary_calendar/widgets/warm_card.dart';
 import 'package:pink_diary_calendar/widgets/warm_page_scaffold.dart';
@@ -32,7 +34,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   Future<void> _selectTheme(String themeKey) async {
     setState(() => _selectedThemeKey = themeKey);
     try {
-      await widget.storageService.saveThemeKey(themeKey);
+      await AppThemeController.instance.setThemeKey(themeKey);
       if (!mounted) {
         return;
       }
@@ -289,30 +291,98 @@ class _ReminderSettingsPageState extends State<ReminderSettingsPage> {
   }
 }
 
-class DataExportPage extends StatelessWidget {
-  const DataExportPage({super.key});
+class DataExportPage extends StatefulWidget {
+  const DataExportPage({
+    this.storageService = const LocalStorageService(),
+    super.key,
+  });
+
+  final LocalStorageService storageService;
+
+  @override
+  State<DataExportPage> createState() => _DataExportPageState();
+}
+
+class _DataExportPageState extends State<DataExportPage> {
+  bool _isCopying = false;
+
+  Future<void> _copyBackupJson() async {
+    setState(() => _isCopying = true);
+    try {
+      final backupJson = await widget.storageService.exportBackupJson();
+      await Clipboard.setData(ClipboardData(text: backupJson));
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('备份内容已复制，可以保存到备忘录或发送到新手机')),
+        );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('导出失败，请稍后再试')));
+    } finally {
+      if (mounted) {
+        setState(() => _isCopying = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return ProfileSettingScaffold(
-      title: '数据备份 / 导出',
-      subtitle: '你的生活碎片，之后可以被好好备份',
-      child: WarmCard(
-        child: Column(
-          children: const [
-            _FutureFeatureTile(
-              icon: Icons.edit_calendar_rounded,
-              title: '导出日历记录',
+      title: '本地备份 / 导出',
+      subtitle: '导出本机日记和纪念日，方便换手机备份',
+      child: Column(
+        children: [
+          WarmCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text('会复制一份 JSON 备份文本，包含日记记录、纪念日、个人资料和设置。'),
+                SizedBox(height: 14),
+                _FutureFeatureTile(
+                  icon: Icons.edit_calendar_rounded,
+                  title: 'dailyRecords',
+                ),
+                _FutureFeatureTile(
+                  icon: Icons.favorite_rounded,
+                  title: 'anniversaries',
+                ),
+                _FutureFeatureTile(
+                  icon: Icons.person_rounded,
+                  title: 'userProfile',
+                ),
+                _FutureFeatureTile(
+                  icon: Icons.settings_rounded,
+                  title: 'appSettings',
+                ),
+              ],
             ),
-            _FutureFeatureTile(icon: Icons.favorite_rounded, title: '导出纪念日'),
-            _FutureFeatureTile(icon: Icons.photo_rounded, title: '导出图片记录'),
-            _FutureFeatureTile(icon: Icons.folder_copy_rounded, title: '本地备份'),
-          ],
-        ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isCopying ? null : _copyBackupJson,
+              icon: Icon(
+                _isCopying ? Icons.hourglass_empty_rounded : Icons.copy_rounded,
+              ),
+              label: Text(_isCopying ? '正在复制' : '复制备份 JSON'),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
+const String feedbackEmail = 'your_email@example.com';
 
 class FeedbackPage extends StatefulWidget {
   const FeedbackPage({super.key});
@@ -332,31 +402,52 @@ class _FeedbackPageState extends State<FeedbackPage> {
     super.dispose();
   }
 
-  void _submit() {
-    if (_contentController.text.trim().isEmpty) {
+  Future<void> _submit() async {
+    final content = _contentController.text.trim();
+    final contact = _contactController.text.trim();
+    if (content.isEmpty) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(const SnackBar(content: Text('写下你想说的话吧')));
       return;
     }
 
-    _contentController.clear();
-    _contactController.clear();
+    final feedbackText = [
+      '收件人：$feedbackEmail',
+      '主题：暖桃日记反馈',
+      '',
+      content,
+      if (contact.isNotEmpty) '',
+      if (contact.isNotEmpty) '联系方式：$contact',
+    ].join('\n');
+    await Clipboard.setData(ClipboardData(text: feedbackText));
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('谢谢你的反馈，我们已经收到这份心意')));
+      ..showSnackBar(SnackBar(content: Text('反馈内容已复制，请发送到 $feedbackEmail')));
   }
 
   @override
   Widget build(BuildContext context) {
     return ProfileSettingScaffold(
       title: '意见反馈',
-      subtitle: '你的感受会让暖桃日历慢慢变好',
+      subtitle: '你的感受会让暖桃日记慢慢变好',
       child: Column(
         children: [
           WarmCard(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  '你可以将建议发送到：$feedbackEmail',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.muted,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
                 TextField(
                   controller: _contentController,
                   minLines: 5,
@@ -376,8 +467,8 @@ class _FeedbackPageState extends State<FeedbackPage> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _submit,
-              icon: const Icon(Icons.mail_rounded),
-              label: const Text('提交反馈'),
+              icon: const Icon(Icons.copy_rounded),
+              label: const Text('复制反馈内容'),
             ),
           ),
         ],
@@ -392,7 +483,7 @@ class AboutPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ProfileSettingScaffold(
-      title: '关于暖桃日历',
+      title: '关于暖桃日记',
       subtitle: '一份温柔的生活手账',
       child: WarmCard(
         child: Column(
@@ -420,7 +511,7 @@ class AboutPage extends StatelessWidget {
             const SizedBox(height: 20),
             Center(
               child: Text(
-                '暖桃日历',
+                '暖桃日记',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
             ),
@@ -435,7 +526,7 @@ class AboutPage extends StatelessWidget {
             ),
             const SizedBox(height: 22),
             Text(
-              '暖桃日历是一份温柔的生活手账。它帮你记录过去、书写今天、期待未来，把每一个值得记住的日子轻轻收藏起来。',
+              '暖桃日记是一份温柔的生活手账。它帮你记录过去、书写今天、安排未来，把每一个值得记住的日子轻轻收藏起来。',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 height: 1.7,
                 color: AppColors.ink,

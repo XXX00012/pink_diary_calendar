@@ -63,6 +63,22 @@ class ProfileThemeUtils {
       secondary: AppColors.sage,
       soft: Color(0xFFF0FAF2),
     ),
+    ProfileThemeOption(
+      key: 'blue',
+      name: '浅蓝色',
+      description: '浅蓝、奶白、淡灰蓝',
+      primary: Color(0xFF6F9FC4),
+      secondary: Color(0xFFBFDDF2),
+      soft: Color(0xFFEFF8FF),
+    ),
+    ProfileThemeOption(
+      key: 'minimalWhite',
+      name: '简约白',
+      description: '淡米白、柔灰粉、浅灰',
+      primary: Color(0xFF9E8F94),
+      secondary: Color(0xFFE2D7D9),
+      soft: Color(0xFFFAF8F4),
+    ),
   ];
 
   static ProfileThemeOption byKey(String key) {

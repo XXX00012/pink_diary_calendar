@@ -67,41 +67,57 @@ class _AnniversaryPageState extends State<AnniversaryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final upcomingAnniversaries = _anniversaries
+        .where((anniversary) => !AnniversaryUtils.isOneTimePast(anniversary))
+        .toList();
+    final pastAnniversaries = _anniversaries
+        .where((anniversary) => AnniversaryUtils.isOneTimePast(anniversary))
+        .toList();
+
     return WarmPageScaffold(
       child: ListView(
         key: const PageStorageKey('anniversary-page'),
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
         children: [
-          WarmPageTitle(
+          const WarmPageTitle(
             title: '重要的日子',
             subtitle: '把值得期待的日子，轻轻放在这里',
             icon: Icons.favorite_rounded,
-          ),
-          const SizedBox(height: 18),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              key: const ValueKey('add-anniversary-button'),
-              onPressed: () => _openEditor(),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('添加纪念日'),
-            ),
           ),
           const SizedBox(height: 18),
           if (_isLoading)
             const _LoadingCard()
           else if (_anniversaries.isEmpty)
             _EmptyAnniversaryState(onAdd: () => _openEditor())
-          else
-            ..._anniversaries.map(
-              (anniversary) => Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: _AnniversaryCard(
-                  anniversary: anniversary,
-                  onTap: () => _openEditor(anniversary: anniversary),
+          else ...[
+            if (upcomingAnniversaries.isEmpty)
+              const _NoUpcomingCard()
+            else
+              ...upcomingAnniversaries.map(
+                (anniversary) => Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _AnniversaryCard(
+                    anniversary: anniversary,
+                    onTap: () => _openEditor(anniversary: anniversary),
+                  ),
                 ),
               ),
-            ),
+            _BottomAddAnniversaryButton(onAdd: () => _openEditor()),
+            if (pastAnniversaries.isNotEmpty) ...[
+              const SizedBox(height: 22),
+              const _SectionHeader(title: '已过去'),
+              const SizedBox(height: 10),
+              ...pastAnniversaries.map(
+                (anniversary) => Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _AnniversaryCard(
+                    anniversary: anniversary,
+                    onTap: () => _openEditor(anniversary: anniversary),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );
@@ -179,6 +195,102 @@ class _EmptyAnniversaryState extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NoUpcomingCard extends StatelessWidget {
+  const _NoUpcomingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return WarmCard(
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.blush.withValues(alpha: 0.72),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.event_available_rounded,
+              color: AppColors.roseDeep,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '最近没有待来的重要日子',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '过期的一次性日子会留在下面，新的期待可以继续收藏。',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomAddAnniversaryButton extends StatelessWidget {
+  const _BottomAddAnniversaryButton({required this.onAdd});
+
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          key: const ValueKey('add-anniversary-list-button'),
+          onPressed: onAdd,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('添加纪念日'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.roseDeep,
+            backgroundColor: AppColors.milk.withValues(alpha: 0.72),
+            side: BorderSide(color: AppColors.line.withValues(alpha: 0.9)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        title,
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(color: AppColors.muted, fontSize: 15),
       ),
     );
   }

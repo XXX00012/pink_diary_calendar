@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
+import 'package:pink_diary_calendar/theme/app_theme.dart';
 
 class WarmPageTitle extends StatelessWidget {
   const WarmPageTitle({
@@ -16,6 +17,8 @@ class WarmPageTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+    final primary = warmColors?.primary ?? AppColors.roseDeep;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -28,7 +31,7 @@ class WarmPageTitle extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
           ),
-          child: Icon(icon, color: AppColors.roseDeep, size: 24),
+          child: Icon(icon, color: primary, size: 24),
         ),
         const SizedBox(width: 14),
         Expanded(

@@ -3,6 +3,7 @@ import 'package:pink_diary_calendar/pages/anniversary_page.dart';
 import 'package:pink_diary_calendar/pages/calendar_page.dart';
 import 'package:pink_diary_calendar/pages/profile_page.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
+import 'package:pink_diary_calendar/theme/app_theme.dart';
 
 class HomeShellPage extends StatefulWidget {
   const HomeShellPage({super.key});
@@ -17,6 +18,9 @@ class _HomeShellPageState extends State<HomeShellPage> {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+    final navShadowColor = warmColors?.primary ?? AppColors.rose;
+
     return Scaffold(
       extendBody: true,
       backgroundColor: Colors.transparent,
@@ -36,7 +40,7 @@ class _HomeShellPageState extends State<HomeShellPage> {
             borderRadius: BorderRadius.circular(30),
             boxShadow: [
               BoxShadow(
-                color: AppColors.rose.withValues(alpha: 0.18),
+                color: navShadowColor.withValues(alpha: 0.16),
                 blurRadius: 28,
                 offset: const Offset(0, 14),
               ),

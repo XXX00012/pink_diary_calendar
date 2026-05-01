@@ -75,17 +75,7 @@ class _ProfilePageState extends State<ProfilePage> {
             icon: Icons.person_rounded,
           ),
           const SizedBox(height: 20),
-          _CoverCard(
-            profile: _profile,
-            theme: theme,
-            isLoading: _isLoading,
-            onEdit: () => _openPage(
-              EditProfilePage(
-                profile: _profile,
-                storageService: _storageService,
-              ),
-            ),
-          ),
+          _CoverCard(profile: _profile, theme: theme, isLoading: _isLoading),
           const SizedBox(height: 18),
           _SettingGroup(
             title: '我的资料',
@@ -122,55 +112,20 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 14),
           _SettingGroup(
-            title: '安全与提醒',
+            title: '提醒设置',
             children: [
               _SettingEntry(
-                icon: Icons.lock_outline_rounded,
-                title: '隐私密码',
-                description: _settings.privacyLockEnabled ? '已开启' : '未开启',
-                onTap: () => _openPage(
-                  PrivacySettingsPage(
-                    settings: _settings,
-                    storageService: _storageService,
-                  ),
-                ),
-              ),
-              _SettingEntry(
                 icon: Icons.notifications_none_rounded,
-                title: '提醒设置',
+                title: '每日提醒',
                 description: _settings.reminderEnabled
-                    ? '每日 ${_settings.dailyReminderTime}'
-                    : '未开启提醒',
+                    ? '已开启：每日 ${_settings.dailyReminderTime}'
+                    : '未开启，点这里设置是否需要提醒',
                 onTap: () => _openPage(
                   ReminderSettingsPage(
                     settings: _settings,
                     storageService: _storageService,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _SettingGroup(
-            title: '数据与反馈',
-            children: [
-              _SettingEntry(
-                icon: Icons.cloud_queue_rounded,
-                title: '数据备份 / 导出',
-                description: '之后可以把生活碎片好好备份',
-                onTap: () => _openPage(const DataExportPage()),
-              ),
-              _SettingEntry(
-                icon: Icons.mail_outline_rounded,
-                title: '意见反馈',
-                description: '写下你的想法和感受',
-                onTap: () => _openPage(const FeedbackPage()),
-              ),
-              _SettingEntry(
-                icon: Icons.info_outline_rounded,
-                title: '关于暖桃日历',
-                description: '产品理念和版本信息',
-                onTap: () => _openPage(const AboutPage()),
               ),
             ],
           ),
@@ -185,13 +140,11 @@ class _CoverCard extends StatelessWidget {
     required this.profile,
     required this.theme,
     required this.isLoading,
-    required this.onEdit,
   });
 
   final UserProfile profile;
   final ProfileThemeOption theme;
   final bool isLoading;
-  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -213,60 +166,35 @@ class _CoverCard extends StatelessWidget {
             ],
           ),
         ),
-        child: Column(
+        child: Row(
           children: [
-            Row(
-              children: [
-                _ProfileAvatar(profile: profile, theme: theme),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isLoading ? '小桃子' : profile.nickname,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        profile.signature.isEmpty
-                            ? '今天也要好好生活'
-                            : profile.signature,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: AppColors.muted,
-                        ),
-                      ),
-                    ],
+            _ProfileAvatar(profile: profile, theme: theme),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isLoading ? '小桃子' : profile.nickname,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.titleLarge,
                   ),
-                ),
-                Icon(
-                  Icons.auto_awesome_rounded,
-                  color: theme.primary.withValues(alpha: 0.8),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_rounded, size: 18),
-                label: const Text('编辑资料'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.primary,
-                  backgroundColor: Colors.white.withValues(alpha: 0.58),
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.8)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(999),
+                  const SizedBox(height: 8),
+                  Text(
+                    profile.signature.isEmpty ? '今天也要好好生活' : profile.signature,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: AppColors.muted,
+                    ),
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w800),
-                ),
+                ],
               ),
+            ),
+            Icon(
+              Icons.auto_awesome_rounded,
+              color: theme.primary.withValues(alpha: 0.8),
             ),
           ],
         ),
@@ -369,7 +297,7 @@ class _SettingEntry extends StatelessWidget {
       borderRadius: BorderRadius.circular(24),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
         child: Row(
           children: [
             Container(
@@ -385,21 +313,26 @@ class _SettingEntry extends StatelessWidget {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     title,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleMedium?.copyWith(fontSize: 15),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppColors.ink,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 6),
                   Text(
                     description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.muted,
+                      fontSize: 15,
+                      height: 1.35,
+                    ),
                   ),
                 ],
               ),
