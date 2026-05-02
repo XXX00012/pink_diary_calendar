@@ -3,11 +3,13 @@ import 'package:pink_diary_calendar/models/anniversary.dart';
 import 'package:pink_diary_calendar/models/daily_record.dart';
 import 'package:pink_diary_calendar/models/life_list.dart';
 import 'package:pink_diary_calendar/pages/day_detail_page.dart';
+import 'package:pink_diary_calendar/pages/expense_summary_page.dart';
 import 'package:pink_diary_calendar/pages/life_list_page.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
 import 'package:pink_diary_calendar/utils/anniversary_utils.dart';
 import 'package:pink_diary_calendar/utils/calendar_utils.dart';
+import 'package:pink_diary_calendar/utils/expense_summary_utils.dart';
 import 'package:pink_diary_calendar/widgets/warm_card.dart';
 import 'package:pink_diary_calendar/widgets/warm_page_scaffold.dart';
 import 'package:pink_diary_calendar/widgets/warm_page_title.dart';
@@ -173,6 +175,20 @@ class _CalendarPageState extends State<CalendarPage> {
     await _loadCalendarMarkers();
   }
 
+  Future<void> _openExpenseSummaryPage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ExpenseSummaryPage(storageService: _storageService),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    await _loadCalendarMarkers();
+  }
+
   _RecentPlan? _findRecentPlan() {
     final today = CalendarUtils.dateOnly(DateTime.now());
     final candidates = <_RecentPlan>[];
@@ -223,6 +239,9 @@ class _CalendarPageState extends State<CalendarPage> {
   Widget build(BuildContext context) {
     final days = CalendarUtils.buildMonthGrid(_visibleMonth);
     final recentPlan = _findRecentPlan();
+    final monthExpenseSummary = ExpenseSummaryUtils.currentMonthSummary(
+      _dailyRecords,
+    );
     final lifeListSubtitle = _lifeListSubtitle();
 
     return WarmPageScaffold(
@@ -287,6 +306,11 @@ class _CalendarPageState extends State<CalendarPage> {
             onTap: recentPlan == null
                 ? null
                 : () => _openDateDetail(recentPlan.date),
+          ),
+          const SizedBox(height: 12),
+          _MonthExpenseHomeCard(
+            summary: monthExpenseSummary,
+            onTap: _openExpenseSummaryPage,
           ),
           const SizedBox(height: 12),
           _LifeListHomeCard(
@@ -411,6 +435,87 @@ class _RecentPlanCard extends StatelessWidget {
                 Icons.chevron_right_rounded,
                 color: AppColors.muted.withValues(alpha: 0.62),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthExpenseHomeCard extends StatelessWidget {
+  const _MonthExpenseHomeCard({required this.summary, required this.onTap});
+
+  final ExpenseSummary summary;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(28),
+      onTap: onTap,
+      child: WarmCard(
+        color: AppColors.blush.withValues(alpha: 0.36),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.milk.withValues(alpha: 0.84),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.savings_outlined,
+                color: AppColors.roseDeep,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('本月小账', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 5),
+                  if (summary.hasEntries) ...[
+                    Text(
+                      '支出 ${ExpenseSummaryUtils.formatMoney(summary.totalExpense)} · 收入 ${ExpenseSummaryUtils.formatMoney(summary.totalIncome)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '看看这个月的钱都去了哪里',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                    ),
+                  ] else ...[
+                    Text(
+                      '还没有小账记录',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.muted,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '在某一天记一笔，就能在这里回顾啦',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.muted.withValues(alpha: 0.62),
+            ),
           ],
         ),
       ),
