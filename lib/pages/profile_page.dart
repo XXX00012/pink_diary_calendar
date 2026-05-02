@@ -127,6 +127,18 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          _SettingGroup(
+            title: '关于与协议',
+            children: [
+              _SettingEntry(
+                icon: Icons.info_outline_rounded,
+                title: '关于暖桃日记',
+                description: '产品理念、用户协议和隐私政策',
+                onTap: () => _openPage(const AboutPage()),
+              ),
+            ],
+          ),
         ],
       ),
     );

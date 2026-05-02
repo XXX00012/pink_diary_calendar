@@ -15,6 +15,37 @@ class LocalStorageService {
   static const String _userProfileKey = 'userProfile';
   static const String _appSettingsKey = 'appSettings';
   static const String _lifeListsKey = 'lifeLists';
+  static const String _hasAgreedLegalKey = 'hasAgreedLegal';
+  static const String _agreedTermsVersionKey = 'agreedTermsVersion';
+  static const String _agreedPrivacyVersionKey = 'agreedPrivacyVersion';
+  static const String _agreedAtKey = 'agreedAt';
+
+  Future<bool> hasValidLegalAgreement({
+    required String termsVersion,
+    required String privacyVersion,
+  }) async {
+    final preferences = await SharedPreferences.getInstance();
+    final hasAgreed = preferences.getBool(_hasAgreedLegalKey) ?? false;
+    final agreedTermsVersion = preferences.getString(_agreedTermsVersionKey);
+    final agreedPrivacyVersion = preferences.getString(
+      _agreedPrivacyVersionKey,
+    );
+
+    return hasAgreed &&
+        agreedTermsVersion == termsVersion &&
+        agreedPrivacyVersion == privacyVersion;
+  }
+
+  Future<void> saveLegalAgreement({
+    required String termsVersion,
+    required String privacyVersion,
+  }) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_hasAgreedLegalKey, true);
+    await preferences.setString(_agreedTermsVersionKey, termsVersion);
+    await preferences.setString(_agreedPrivacyVersionKey, privacyVersion);
+    await preferences.setString(_agreedAtKey, DateTime.now().toIso8601String());
+  }
 
   Future<Map<String, DailyRecord>> loadDailyRecords() async {
     final preferences = await SharedPreferences.getInstance();

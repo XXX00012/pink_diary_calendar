@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pink_diary_calendar/config/legal_links.dart' as legal;
 import 'package:pink_diary_calendar/models/app_settings.dart';
+import 'package:pink_diary_calendar/pages/legal_document_page.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
 import 'package:pink_diary_calendar/services/notification_service.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
@@ -675,8 +677,6 @@ class _DataExportPageState extends State<DataExportPage> {
   }
 }
 
-const String feedbackEmail = 'your_email@example.com';
-
 class FeedbackPage extends StatefulWidget {
   const FeedbackPage({super.key});
 
@@ -706,7 +706,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
     }
 
     final feedbackText = [
-      '收件人：$feedbackEmail',
+      '收件人：${legal.feedbackEmail}',
       '主题：暖桃日记反馈',
       '',
       content,
@@ -719,7 +719,9 @@ class _FeedbackPageState extends State<FeedbackPage> {
     }
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('反馈内容已复制，请发送到 $feedbackEmail')));
+      ..showSnackBar(
+        SnackBar(content: Text('反馈内容已复制，请发送到 ${legal.feedbackEmail}')),
+      );
   }
 
   @override
@@ -734,7 +736,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '你可以将建议发送到：$feedbackEmail',
+                  '你可以将建议发送到：${legal.feedbackEmail}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.muted,
                     fontWeight: FontWeight.w700,
@@ -824,6 +826,91 @@ class AboutPage extends StatelessWidget {
                 height: 1.7,
                 color: AppColors.ink,
               ),
+            ),
+            const SizedBox(height: 20),
+            _LegalDocumentTile(
+              icon: Icons.description_outlined,
+              title: '用户协议',
+              description: '查看本地协议正文 · ${legal.termsVersion}',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const LegalDocumentPage(
+                    title: '用户协议',
+                    assetPath: legal.termsAssetPath,
+                    version: legal.termsVersion,
+                  ),
+                ),
+              ),
+            ),
+            _LegalDocumentTile(
+              icon: Icons.privacy_tip_outlined,
+              title: '隐私政策',
+              description: '查看本地政策正文 · ${legal.privacyVersion}',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const LegalDocumentPage(
+                    title: '隐私政策',
+                    assetPath: legal.privacyAssetPath,
+                    version: legal.privacyVersion,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LegalDocumentTile extends StatelessWidget {
+  const _LegalDocumentTile({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.roseDeep, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppColors.ink,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.muted.withValues(alpha: 0.65),
             ),
           ],
         ),
