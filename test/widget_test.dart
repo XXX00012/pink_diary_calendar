@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pink_diary_calendar/app.dart';
 import 'package:pink_diary_calendar/utils/calendar_utils.dart';
@@ -16,7 +16,7 @@ void main() {
   ) async {
     await tester.pumpWidget(const WarmPeachCalendarApp());
 
-    expect(find.text('暖桃日历'), findsOneWidget);
+    expect(find.text('拾光日记'), findsOneWidget);
     expect(find.byKey(const ValueKey('nav-calendar')), findsOneWidget);
     expect(find.byKey(const ValueKey('nav-anniversary')), findsOneWidget);
     expect(find.byKey(const ValueKey('nav-profile')), findsOneWidget);
@@ -43,7 +43,7 @@ void main() {
     expect(find.text('小桃子'), findsOneWidget);
     expect(find.text('今天也要好好生活'), findsOneWidget);
     expect(find.text('主题装扮'), findsOneWidget);
-    expect(find.text('关于暖桃日历'), findsOneWidget);
+    expect(find.text('关于拾光日记'), findsOneWidget);
   });
 
   testWidgets('calendar opens daily record page and reloads saved text', (

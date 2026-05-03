@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:pink_diary_calendar/config/app_info.dart';
 import 'package:pink_diary_calendar/models/app_settings.dart';
 import 'package:pink_diary_calendar/models/user_profile.dart';
 import 'package:pink_diary_calendar/pages/edit_profile_page.dart';
 import 'package:pink_diary_calendar/pages/profile_settings_pages.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
+import 'package:pink_diary_calendar/theme/app_theme.dart';
 import 'package:pink_diary_calendar/utils/profile_theme_utils.dart';
 import 'package:pink_diary_calendar/widgets/warm_card.dart';
 import 'package:pink_diary_calendar/widgets/warm_page_scaffold.dart';
@@ -133,7 +135,7 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               _SettingEntry(
                 icon: Icons.info_outline_rounded,
-                title: '关于暖桃日记',
+                title: '关于${AppInfo.appName}',
                 description: '产品理念、用户协议和隐私政策',
                 onTap: () => _openPage(const AboutPage()),
               ),
@@ -169,10 +171,11 @@ class _CoverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
 
     return WarmCard(
       padding: EdgeInsets.zero,
-      color: theme.soft.withValues(alpha: 0.86),
+      color: theme.cardBackground.withValues(alpha: 0.9),
       child: Container(
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
@@ -181,8 +184,8 @@ class _CoverCard extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              theme.soft.withValues(alpha: 0.96),
-              AppColors.milk.withValues(alpha: 0.92),
+              theme.primarySoft.withValues(alpha: 0.86),
+              theme.cardBackground.withValues(alpha: 0.94),
             ],
           ),
         ),
@@ -206,7 +209,7 @@ class _CoverCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: textTheme.bodyMedium?.copyWith(
-                      color: AppColors.muted,
+                      color: warmColors?.textSecondary ?? AppColors.muted,
                     ),
                   ),
                 ],
@@ -214,7 +217,7 @@ class _CoverCard extends StatelessWidget {
             ),
             Icon(
               Icons.auto_awesome_rounded,
-              color: theme.primary.withValues(alpha: 0.8),
+              color: theme.illustrationColor.withValues(alpha: 0.72),
             ),
           ],
         ),
@@ -238,7 +241,10 @@ class _ProfileAvatar extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [theme.secondary, theme.primary.withValues(alpha: 0.74)],
+          colors: [
+            theme.secondary.withValues(alpha: 0.9),
+            theme.primary.withValues(alpha: 0.78),
+          ],
         ),
         shape: BoxShape.circle,
         border: Border.all(
@@ -276,6 +282,8 @@ class _SettingGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -284,7 +292,7 @@ class _SettingGroup extends StatelessWidget {
           child: Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.roseDeep,
+              color: warmColors?.sectionTitleColor ?? AppColors.ink,
               fontSize: 15,
             ),
           ),
@@ -313,6 +321,12 @@ class _SettingEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+    final primary = warmColors?.primary ?? AppColors.ink;
+    final iconBackground = warmColors?.profileIconBackground ?? AppColors.cream;
+    final textPrimary = warmColors?.textPrimary ?? AppColors.ink;
+    final textSecondary = warmColors?.textSecondary ?? AppColors.muted;
+
     return InkWell(
       borderRadius: BorderRadius.circular(24),
       onTap: onTap,
@@ -324,10 +338,10 @@ class _SettingEntry extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: AppColors.blush.withValues(alpha: 0.72),
+                color: iconBackground.withValues(alpha: 0.86),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(icon, color: AppColors.roseDeep, size: 21),
+              child: Icon(icon, color: primary, size: 21),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -338,7 +352,7 @@ class _SettingEntry extends StatelessWidget {
                   Text(
                     title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.ink,
+                      color: textPrimary,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
@@ -349,7 +363,7 @@ class _SettingEntry extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.muted,
+                      color: textSecondary,
                       fontSize: 15,
                       height: 1.35,
                     ),
@@ -359,7 +373,7 @@ class _SettingEntry extends StatelessWidget {
             ),
             Icon(
               Icons.chevron_right_rounded,
-              color: AppColors.muted.withValues(alpha: 0.62),
+              color: textSecondary.withValues(alpha: 0.62),
             ),
           ],
         ),

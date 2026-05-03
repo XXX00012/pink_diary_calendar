@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pink_diary_calendar/config/app_info.dart';
 import 'package:pink_diary_calendar/config/legal_links.dart' as legal;
 import 'package:pink_diary_calendar/models/app_settings.dart';
 import 'package:pink_diary_calendar/pages/legal_document_page.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
 import 'package:pink_diary_calendar/services/notification_service.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
+import 'package:pink_diary_calendar/theme/app_theme.dart';
 import 'package:pink_diary_calendar/theme/theme_controller.dart';
 import 'package:pink_diary_calendar/utils/profile_theme_utils.dart';
 import 'package:pink_diary_calendar/widgets/warm_card.dart';
@@ -31,7 +33,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _selectedThemeKey = widget.currentThemeKey;
+    _selectedThemeKey = ProfileThemeUtils.byKey(widget.currentThemeKey).key;
   }
 
   Future<void> _selectTheme(String themeKey) async {
@@ -146,7 +148,9 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   value: _enabled,
                   onChanged: (value) => setState(() => _enabled = value),
                   contentPadding: EdgeInsets.zero,
-                  activeThumbColor: AppColors.roseDeep,
+                  activeThumbColor: Theme.of(
+                    context,
+                  ).extension<WarmThemeColors>()?.primary,
                   title: Text(
                     '开启隐私密码',
                     style: Theme.of(context).textTheme.titleMedium,
@@ -482,7 +486,7 @@ class _ReminderSettingsPageState extends State<ReminderSettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '开启后，暖桃日记只会在你设置的生日、纪念日和重要日期前提醒你，不会催你每天写日记。',
+                  '开启后，${AppInfo.appName}只会在你设置的生日、纪念日和重要日期前提醒你，不会催你每天写日记。',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.ink,
                     height: 1.55,
@@ -496,7 +500,9 @@ class _ReminderSettingsPageState extends State<ReminderSettingsPage> {
                       ? null
                       : _handleEnabledChanged,
                   contentPadding: EdgeInsets.zero,
-                  activeThumbColor: AppColors.roseDeep,
+                  activeThumbColor: Theme.of(
+                    context,
+                  ).extension<WarmThemeColors>()?.primary,
                   title: Text(
                     '开启纪念日提醒',
                     style: Theme.of(context).textTheme.titleMedium,
@@ -707,7 +713,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
 
     final feedbackText = [
       '收件人：${legal.feedbackEmail}',
-      '主题：暖桃日记反馈',
+      '主题：${AppInfo.appName}反馈',
       '',
       content,
       if (contact.isNotEmpty) '',
@@ -728,7 +734,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
   Widget build(BuildContext context) {
     return ProfileSettingScaffold(
       title: '意见反馈',
-      subtitle: '你的感受会让暖桃日记慢慢变好',
+      subtitle: '你的感受会让${AppInfo.appName}慢慢变好',
       child: Column(
         children: [
           WarmCard(
@@ -778,7 +784,7 @@ class AboutPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ProfileSettingScaffold(
-      title: '关于暖桃日记',
+      title: '关于${AppInfo.appName}',
       subtitle: '一份温柔的生活手账',
       child: WarmCard(
         child: Column(
@@ -806,14 +812,14 @@ class AboutPage extends StatelessWidget {
             const SizedBox(height: 20),
             Center(
               child: Text(
-                '暖桃日记',
+                AppInfo.appName,
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
             ),
             const SizedBox(height: 8),
             Center(
               child: Text(
-                '版本 1.0.0',
+                '版本 ${AppInfo.appVersion}',
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
@@ -821,7 +827,7 @@ class AboutPage extends StatelessWidget {
             ),
             const SizedBox(height: 22),
             Text(
-              '暖桃日记是一份温柔的生活手账。它帮你记录过去、书写今天、安排未来，把每一个值得记住的日子轻轻收藏起来。',
+              AppInfo.appDescription,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 height: 1.7,
                 color: AppColors.ink,
@@ -878,6 +884,8 @@ class _LegalDocumentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return InkWell(
       borderRadius: BorderRadius.circular(20),
       onTap: onTap,
@@ -885,7 +893,7 @@ class _LegalDocumentTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 11),
         child: Row(
           children: [
-            Icon(icon, color: AppColors.roseDeep, size: 22),
+            Icon(icon, color: warmColors?.primary ?? AppColors.ink, size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -894,23 +902,25 @@ class _LegalDocumentTile extends StatelessWidget {
                   Text(
                     title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.ink,
+                      color: warmColors?.textPrimary ?? AppColors.ink,
                       fontSize: 15,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: warmColors?.textSecondary ?? AppColors.muted,
+                    ),
                   ),
                 ],
               ),
             ),
             Icon(
               Icons.chevron_right_rounded,
-              color: AppColors.muted.withValues(alpha: 0.65),
+              color: (warmColors?.textSecondary ?? AppColors.muted).withValues(
+                alpha: 0.65,
+              ),
             ),
           ],
         ),
@@ -935,6 +945,8 @@ class ProfileSettingScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: Colors.transparent,
@@ -953,15 +965,17 @@ class ProfileSettingScaffold extends StatelessWidget {
                       width: 46,
                       height: 46,
                       decoration: BoxDecoration(
-                        color: AppColors.milk.withValues(alpha: 0.88),
+                        color: (warmColors?.card ?? AppColors.milk).withValues(
+                          alpha: 0.88,
+                        ),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.8),
                         ),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_back_ios_new_rounded,
-                        color: AppColors.roseDeep,
+                        color: warmColors?.primary ?? AppColors.ink,
                         size: 20,
                       ),
                     ),
@@ -980,7 +994,7 @@ class ProfileSettingScaffold extends StatelessWidget {
                       Text(
                         subtitle,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.muted,
+                          color: warmColors?.textSecondary ?? AppColors.muted,
                         ),
                       ),
                     ],
@@ -1010,23 +1024,57 @@ class _ThemeOptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return InkWell(
       borderRadius: BorderRadius.circular(28),
       onTap: onTap,
       child: WarmCard(
         padding: const EdgeInsets.all(18),
-        color: theme.soft.withValues(alpha: 0.86),
+        color: theme.cardBackground.withValues(alpha: 0.92),
+        border: Border.all(
+          color: selected
+              ? theme.primary.withValues(alpha: 0.42)
+              : Colors.white.withValues(alpha: 0.78),
+          width: selected ? 1.4 : 1,
+        ),
         child: Row(
           children: [
             Container(
-              width: 58,
+              width: 66,
               height: 58,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(22),
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [theme.secondary, theme.primary],
+                  colors: [theme.backgroundStart, theme.backgroundEnd],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: theme.primary,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        _ThemePreviewDot(color: theme.calendarCardBackground),
+                        const SizedBox(width: 4),
+                        _ThemePreviewDot(color: theme.planCardBackground),
+                        const SizedBox(width: 4),
+                        _ThemePreviewDot(color: theme.expenseCardBackground),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1042,17 +1090,36 @@ class _ThemeOptionCard extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     theme.description,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: warmColors?.textSecondary ?? AppColors.muted,
+                    ),
                   ),
                 ],
               ),
             ),
             if (selected)
-              const Icon(Icons.check_circle_rounded, color: AppColors.roseDeep),
+              Icon(Icons.check_circle_rounded, color: theme.primary),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ThemePreviewDot extends StatelessWidget {
+  const _ThemePreviewDot({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
       ),
     );
   }
@@ -1092,11 +1159,13 @@ class _FutureFeatureTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.roseDeep, size: 22),
+          Icon(icon, color: warmColors?.primary ?? AppColors.ink, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -1128,7 +1197,7 @@ InputDecoration softInputDecoration(String hintText) {
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(20),
-      borderSide: const BorderSide(color: AppColors.roseDeep, width: 1.2),
+      borderSide: const BorderSide(color: Color(0xFF7FA3AF), width: 1.2),
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
   );

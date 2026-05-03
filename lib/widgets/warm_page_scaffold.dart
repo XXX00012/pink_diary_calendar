@@ -18,9 +18,9 @@ class WarmPageScaffold extends StatelessWidget {
       child: Stack(
         children: [
           _SoftDecorations(
-            primary: warmColors?.primary ?? AppColors.roseDeep,
-            secondary: warmColors?.secondary ?? AppColors.lavenderDeep,
-            soft: warmColors?.soft ?? AppColors.blush,
+            primary: warmColors?.primary ?? const Color(0xFF7FA3AF),
+            secondary: warmColors?.secondary ?? const Color(0xFF86A8A0),
+            soft: warmColors?.soft ?? const Color(0xFFFAF8F2),
           ),
           SafeArea(
             bottom: false,
@@ -66,7 +66,7 @@ class _SoftDecorations extends StatelessWidget {
             top: 118,
             left: 22,
             child: Icon(
-              Icons.favorite_rounded,
+              Icons.eco_outlined,
               color: primary.withValues(alpha: 0.18),
               size: 34,
             ),

@@ -105,6 +105,23 @@ class _LifeListEditorPageState extends State<LifeListEditorPage> {
     });
   }
 
+  List<LifeListItem> _itemsIncludingPendingText(DateTime now) {
+    final pendingText = _itemController.text.trim();
+    if (pendingText.isEmpty) {
+      return _items;
+    }
+
+    return [
+      ..._items,
+      LifeListItem(
+        id: 'life-item-${now.microsecondsSinceEpoch}',
+        text: pendingText,
+        done: false,
+        createdAt: now,
+      ),
+    ];
+  }
+
   Future<void> _save() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
@@ -116,12 +133,13 @@ class _LifeListEditorPageState extends State<LifeListEditorPage> {
     setState(() => _isSaving = true);
 
     final now = DateTime.now();
+    final nextItems = _itemsIncludingPendingText(now);
     final current = widget.lifeList;
     final lifeList = LifeList(
       id: current?.id ?? 'life-list-${now.microsecondsSinceEpoch}',
       type: widget.typeInfo.type,
       title: title,
-      items: _items,
+      items: nextItems,
       note: current?.note ?? '',
       createdAt: current?.createdAt ?? now,
       updatedAt: now,

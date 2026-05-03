@@ -20,7 +20,7 @@ class AppSettings {
       anniversaryNotificationEnabled: false,
       anniversaryReminderTime: '09:00',
       notificationPermissionGranted: false,
-      themeKey: 'pink',
+      themeKey: 'minimalWhite',
       updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
     );
   }

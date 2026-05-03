@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
+import 'package:pink_diary_calendar/utils/profile_theme_utils.dart';
 
 class AppThemeController extends ChangeNotifier {
   AppThemeController._();
@@ -8,7 +9,7 @@ class AppThemeController extends ChangeNotifier {
 
   final LocalStorageService _storageService = const LocalStorageService();
 
-  String _themeKey = 'pink';
+  String _themeKey = 'minimalWhite';
   bool _hasLoaded = false;
 
   String get themeKey => _themeKey;
@@ -20,19 +21,20 @@ class AppThemeController extends ChangeNotifier {
 
     try {
       final settings = await _storageService.loadAppSettings();
-      _themeKey = settings.themeKey;
+      _themeKey = ProfileThemeUtils.byKey(settings.themeKey).key;
     } catch (_) {
-      _themeKey = 'pink';
+      _themeKey = 'minimalWhite';
     }
     _hasLoaded = true;
     notifyListeners();
   }
 
   Future<void> setThemeKey(String themeKey) async {
-    if (_themeKey != themeKey) {
-      _themeKey = themeKey;
+    final normalizedThemeKey = ProfileThemeUtils.byKey(themeKey).key;
+    if (_themeKey != normalizedThemeKey) {
+      _themeKey = normalizedThemeKey;
       notifyListeners();
     }
-    await _storageService.saveThemeKey(themeKey);
+    await _storageService.saveThemeKey(normalizedThemeKey);
   }
 }

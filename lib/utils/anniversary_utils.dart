@@ -51,7 +51,7 @@ class AnniversaryUtils {
   static const List<AnniversaryThemeOption> themeOptions = [
     AnniversaryThemeOption(
       id: 'blush',
-      label: '默认粉',
+      label: '桃雾粉',
       color: AppColors.roseDeep,
       softColor: AppColors.blush,
     ),

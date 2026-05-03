@@ -4,6 +4,7 @@ class DailyRecord {
     required this.text,
     required this.updatedAt,
     this.images = const [],
+    this.blocks = const [],
     this.expenses = const [],
     this.plans = const [],
     this.reminders = const [],
@@ -13,13 +14,22 @@ class DailyRecord {
   final String text;
   final DateTime updatedAt;
   final List<String> images;
+  final List<DiaryBlock> blocks;
   final List<ExpenseEntry> expenses;
   final List<PlanEntry> plans;
   final List<dynamic> reminders;
 
-  bool get hasText => text.trim().isNotEmpty;
-  bool get hasContent =>
-      hasText || images.isNotEmpty || expenses.isNotEmpty || plans.isNotEmpty;
+  bool get hasText =>
+      text.trim().isNotEmpty ||
+      blocks.any((block) => block.isText && block.text.trim().isNotEmpty);
+  bool get hasAnyContent =>
+      text.trim().isNotEmpty ||
+      images.isNotEmpty ||
+      blocks.isNotEmpty ||
+      expenses.isNotEmpty ||
+      plans.isNotEmpty ||
+      reminders.isNotEmpty;
+  bool get hasContent => hasAnyContent;
 
   Map<String, dynamic> toJson() {
     return {
@@ -27,6 +37,7 @@ class DailyRecord {
       'text': text,
       'updatedAt': updatedAt.toIso8601String(),
       'images': images,
+      'blocks': blocks.map((entry) => entry.toJson()).toList(),
       'expenses': expenses.map((entry) => entry.toJson()).toList(),
       'plans': plans.map((entry) => entry.toJson()).toList(),
       'littleJoys': const [],
@@ -35,13 +46,17 @@ class DailyRecord {
   }
 
   factory DailyRecord.fromJson(Map<String, dynamic> json) {
+    final text = json['text'] as String? ?? '';
+    final images = _readStringList(json['images']);
+    final blocks = _readDiaryBlocks(json['blocks']);
     return DailyRecord(
       date: json['date'] as String? ?? '',
-      text: json['text'] as String? ?? '',
+      text: text,
       updatedAt:
           DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      images: _readStringList(json['images']),
+      images: images,
+      blocks: blocks.isNotEmpty ? blocks : _legacyBlocks(text, images),
       expenses: _readExpenseEntries(json['expenses']),
       plans: _readPlanEntries(json['plans'], json['littleJoys']),
       reminders: _readDynamicList(json['reminders']),
@@ -60,6 +75,46 @@ class DailyRecord {
       return const [];
     }
     return List<dynamic>.from(value);
+  }
+
+  static List<DiaryBlock> _readDiaryBlocks(Object? value) {
+    if (value is! List) {
+      return const [];
+    }
+
+    return value
+        .whereType<Map>()
+        .map((entry) => DiaryBlock.fromJson(Map<String, dynamic>.from(entry)))
+        .where((entry) => entry.type == 'text' || entry.imagePath.isNotEmpty)
+        .toList();
+  }
+
+  static List<DiaryBlock> _legacyBlocks(String text, List<String> images) {
+    final blocks = <DiaryBlock>[];
+    final now = DateTime.fromMillisecondsSinceEpoch(0);
+    if (text.trim().isNotEmpty) {
+      blocks.add(
+        DiaryBlock(
+          id: 'legacy-text-${text.hashCode}',
+          type: 'text',
+          text: text,
+          imagePath: '',
+          createdAt: now,
+        ),
+      );
+    }
+    for (final imagePath in images) {
+      blocks.add(
+        DiaryBlock(
+          id: 'legacy-image-${imagePath.hashCode}',
+          type: 'image',
+          text: '',
+          imagePath: imagePath,
+          createdAt: now,
+        ),
+      );
+    }
+    return blocks;
   }
 
   static List<ExpenseEntry> _readExpenseEntries(Object? value) {
@@ -89,6 +144,51 @@ class DailyRecord {
         .map((entry) => PlanEntry.fromLegacyLittleJoy(entry))
         .where((entry) => entry.text.trim().isNotEmpty)
         .toList();
+  }
+}
+
+class DiaryBlock {
+  const DiaryBlock({
+    required this.id,
+    required this.type,
+    required this.text,
+    required this.imagePath,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String type;
+  final String text;
+  final String imagePath;
+  final DateTime createdAt;
+
+  bool get isText => type == 'text';
+  bool get isImage => type == 'image';
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'type': type,
+      'text': text,
+      'imagePath': imagePath,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+
+  factory DiaryBlock.fromJson(Map<String, dynamic> json) {
+    final createdAt =
+        DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    final type = json['type'] as String? ?? 'text';
+    return DiaryBlock(
+      id:
+          json['id'] as String? ??
+          'diary-block-${createdAt.microsecondsSinceEpoch}',
+      type: type == 'image' ? 'image' : 'text',
+      text: json['text'] as String? ?? '',
+      imagePath: json['imagePath'] as String? ?? '',
+      createdAt: createdAt,
+    );
   }
 }
 

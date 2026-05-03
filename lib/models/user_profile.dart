@@ -12,7 +12,7 @@ class UserProfile {
       avatarPath: '',
       nickname: '小桃子',
       signature: '今天也要好好生活',
-      themeKey: 'pink',
+      themeKey: 'minimalWhite',
       updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
     );
   }

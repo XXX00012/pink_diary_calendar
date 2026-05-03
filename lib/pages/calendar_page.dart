@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pink_diary_calendar/config/app_info.dart';
 import 'package:pink_diary_calendar/models/anniversary.dart';
 import 'package:pink_diary_calendar/models/daily_record.dart';
 import 'package:pink_diary_calendar/models/life_list.dart';
@@ -7,6 +8,7 @@ import 'package:pink_diary_calendar/pages/expense_summary_page.dart';
 import 'package:pink_diary_calendar/pages/life_list_page.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
 import 'package:pink_diary_calendar/theme/app_colors.dart';
+import 'package:pink_diary_calendar/theme/app_theme.dart';
 import 'package:pink_diary_calendar/utils/anniversary_utils.dart';
 import 'package:pink_diary_calendar/utils/calendar_utils.dart';
 import 'package:pink_diary_calendar/utils/expense_summary_utils.dart';
@@ -33,6 +35,7 @@ class _CalendarPageState extends State<CalendarPage> {
   Map<String, DailyRecord> _dailyRecords = {};
   List<Anniversary> _anniversaries = [];
   List<LifeList> _lifeLists = [];
+  List<LifeListCategory> _lifeListCategories = [];
 
   @override
   void initState() {
@@ -84,6 +87,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final dailyRecords = await _storageService.loadDailyRecords();
     final anniversaries = await _storageService.loadAnniversaries();
     final lifeLists = await _storageService.loadLifeLists();
+    final lifeListCategories = await _storageService.loadLifeListCategories();
     if (!mounted) {
       return;
     }
@@ -92,6 +96,7 @@ class _CalendarPageState extends State<CalendarPage> {
       _dailyRecords = dailyRecords;
       _anniversaries = anniversaries;
       _lifeLists = lifeLists;
+      _lifeListCategories = lifeListCategories;
     });
   }
 
@@ -243,6 +248,7 @@ class _CalendarPageState extends State<CalendarPage> {
       _dailyRecords,
     );
     final lifeListSubtitle = _lifeListSubtitle();
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
 
     return WarmPageScaffold(
       child: ListView(
@@ -250,13 +256,18 @@ class _CalendarPageState extends State<CalendarPage> {
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 128),
         children: [
           const WarmPageTitle(
-            title: '暖桃日记',
+            title: AppInfo.appName,
             subtitle: '记录过去，书写今天，安排未来',
             icon: Icons.calendar_month_rounded,
+            trailing: LineDogDecoration(),
           ),
           const SizedBox(height: 18),
           WarmCard(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            color:
+                warmColors?.calendarCardBackground.withValues(alpha: 0.92) ??
+                const Color(0xFFEAF5F8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.78)),
             child: Column(
               children: [
                 _MonthSwitcher(
@@ -323,6 +334,11 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   String _lifeListSubtitle() {
+    final builtInCount = LifeListCategory.builtInCategories().length;
+    if (_lifeListCategories.length > builtInCount) {
+      return '${_lifeListCategories.length} 个清单分类正在使用';
+    }
+
     if (_lifeLists.isEmpty) {
       return '购物、学习、旅行，都可以慢慢整理';
     }
@@ -332,7 +348,7 @@ class _CalendarPageState extends State<CalendarPage> {
       (count, list) => count + list.unfinishedCount,
     );
     if (unfinishedCount > 0) {
-      return '还有 $unfinishedCount 个小计划待完成';
+      return '还有 $unfinishedCount 个小事项待完成';
     }
 
     return '今天的清单都整理好啦';
@@ -362,12 +378,15 @@ class _RecentPlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentPlan = plan;
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
 
     return InkWell(
       borderRadius: BorderRadius.circular(28),
       onTap: onTap,
       child: WarmCard(
-        color: AppColors.lavender.withValues(alpha: 0.28),
+        color:
+            warmColors?.planCardBackground.withValues(alpha: 0.88) ??
+            const Color(0xFFEAF4F8).withValues(alpha: 0.76),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -378,9 +397,9 @@ class _RecentPlanCard extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.82),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.event_note_rounded,
-                color: AppColors.lavenderDeep,
+                color: warmColors?.primary ?? const Color(0xFF6F9FC4),
               ),
             ),
             const SizedBox(width: 14),
@@ -450,11 +469,15 @@ class _MonthExpenseHomeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return InkWell(
       borderRadius: BorderRadius.circular(28),
       onTap: onTap,
       child: WarmCard(
-        color: AppColors.blush.withValues(alpha: 0.36),
+        color:
+            warmColors?.expenseCardBackground.withValues(alpha: 0.88) ??
+            const Color(0xFFEDF7F0).withValues(alpha: 0.76),
         child: Row(
           children: [
             Container(
@@ -464,9 +487,9 @@ class _MonthExpenseHomeCard extends StatelessWidget {
                 color: AppColors.milk.withValues(alpha: 0.84),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.savings_outlined,
-                color: AppColors.roseDeep,
+                color: warmColors?.secondary ?? const Color(0xFF7FA08A),
               ),
             ),
             const SizedBox(width: 14),
@@ -531,11 +554,15 @@ class _LifeListHomeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return InkWell(
       borderRadius: BorderRadius.circular(28),
       onTap: onTap,
       child: WarmCard(
-        color: const Color(0xFFEFF8FF).withValues(alpha: 0.52),
+        color:
+            warmColors?.lifeListCardBackground.withValues(alpha: 0.9) ??
+            const Color(0xFFF8F3E8).withValues(alpha: 0.78),
         child: Row(
           children: [
             Container(
@@ -545,9 +572,9 @@ class _LifeListHomeCard extends StatelessWidget {
                 color: AppColors.milk.withValues(alpha: 0.84),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.checklist_rounded,
-                color: AppColors.lavenderDeep,
+                color: warmColors?.accent ?? const Color(0xFFB59B67),
               ),
             ),
             const SizedBox(width: 14),
@@ -599,14 +626,15 @@ class _MonthPickerSheetState extends State<_MonthPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
-        decoration: const BoxDecoration(
-          color: AppColors.milk,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        decoration: BoxDecoration(
+          color: warmColors?.card ?? AppColors.milk,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         ),
         child: SafeArea(
           top: false,
@@ -672,13 +700,17 @@ class _MonthPickerSheetState extends State<_MonthPickerSheet> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: selected
-                            ? AppColors.blush.withValues(alpha: 0.95)
-                            : AppColors.cream.withValues(alpha: 0.72),
+                            ? (warmColors?.primarySoft ?? AppColors.cream)
+                                  .withValues(alpha: 0.95)
+                            : (warmColors?.card ?? AppColors.cream).withValues(
+                                alpha: 0.72,
+                              ),
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
                           color: selected
-                              ? AppColors.roseDeep
-                              : AppColors.line.withValues(alpha: 0.75),
+                              ? (warmColors?.primary ?? AppColors.ink)
+                              : (warmColors?.primarySoft ?? AppColors.line)
+                                    .withValues(alpha: 0.75),
                         ),
                       ),
                       child: Text(
@@ -718,6 +750,8 @@ class _MonthSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return Row(
       children: [
         _RoundIconButton(
@@ -736,7 +770,7 @@ class _MonthSwitcher extends StatelessWidget {
                 title,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppColors.ink,
+                  color: warmColors?.textPrimary ?? AppColors.ink,
                   fontSize: 24,
                   fontWeight: FontWeight.w900,
                 ),
@@ -769,6 +803,8 @@ class _RoundIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return Tooltip(
       message: tooltip,
       child: InkResponse(
@@ -778,10 +814,16 @@ class _RoundIconButton extends StatelessWidget {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: AppColors.blush.withValues(alpha: 0.82),
+            color: (warmColors?.primarySoft ?? AppColors.cream).withValues(
+              alpha: 0.82,
+            ),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: AppColors.roseDeep, size: 28),
+          child: Icon(
+            icon,
+            color: warmColors?.primary ?? AppColors.ink,
+            size: 28,
+          ),
         ),
       ),
     );
@@ -795,6 +837,8 @@ class _WeekdayRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+
     return Row(
       children: labels
           .map(
@@ -803,7 +847,7 @@ class _WeekdayRow extends StatelessWidget {
                 label,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.muted,
+                  color: warmColors?.textSecondary ?? AppColors.muted,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -830,21 +874,27 @@ class _CalendarDayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+    final primary = warmColors?.primary ?? const Color(0xFF7FA3AF);
+    final secondary = warmColors?.secondary ?? AppColors.lavenderDeep;
+    final textPrimary = warmColors?.textPrimary ?? AppColors.ink;
+    final textSecondary = warmColors?.textSecondary ?? AppColors.muted;
+    final softBorder = warmColors?.primarySoft ?? AppColors.line;
     final textColor = switch ((isSelected, day.isCurrentMonth)) {
-      (true, _) => AppColors.ink,
-      (false, true) => AppColors.ink,
-      (false, false) => AppColors.muted.withValues(alpha: 0.48),
+      (true, _) => textPrimary,
+      (false, true) => textPrimary,
+      (false, false) => textSecondary.withValues(alpha: 0.5),
     };
     final backgroundColor = switch ((isSelected, day.isCurrentMonth)) {
-      (true, _) => AppColors.roseDeep,
-      (false, true) => AppColors.milk.withValues(alpha: 0.72),
-      (false, false) => AppColors.blush.withValues(alpha: 0.34),
+      (true, _) => primary.withValues(alpha: 0.78),
+      (false, true) => Colors.white.withValues(alpha: 0.72),
+      (false, false) => softBorder.withValues(alpha: 0.34),
     };
     final borderColor = isSelected
-        ? AppColors.roseDeep
+        ? primary
         : day.isToday
-        ? AppColors.lavenderDeep.withValues(alpha: 0.8)
-        : AppColors.line.withValues(alpha: 0.7);
+        ? secondary.withValues(alpha: 0.8)
+        : softBorder.withValues(alpha: 0.82);
 
     return Semantics(
       button: true,
@@ -889,9 +939,7 @@ class _CalendarDayCell extends StatelessWidget {
                     width: 5,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.ink
-                          : AppColors.lavenderDeep,
+                      color: isSelected ? AppColors.ink : secondary,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -917,18 +965,21 @@ class _CalendarMarker extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final warmColors = Theme.of(context).extension<WarmThemeColors>();
+    final primary = warmColors?.primary ?? const Color(0xFF7FA3AF);
+    final secondary = warmColors?.secondary ?? AppColors.lavenderDeep;
     final icon = switch (markerType) {
       _CalendarMarkerType.pastRecord => Icons.check_rounded,
       _CalendarMarkerType.futurePlan => Icons.favorite_rounded,
-      _CalendarMarkerType.anniversary => Icons.circle,
+      _CalendarMarkerType.anniversary => Icons.auto_awesome_rounded,
       _CalendarMarkerType.record => Icons.favorite_rounded,
       _CalendarMarkerType.none => Icons.circle,
     };
     final color = switch (markerType) {
       _CalendarMarkerType.pastRecord => const Color(0xFF5FA86F),
-      _CalendarMarkerType.futurePlan => AppColors.roseDeep,
-      _CalendarMarkerType.anniversary => AppColors.lavenderDeep,
-      _CalendarMarkerType.record => AppColors.roseDeep,
+      _CalendarMarkerType.futurePlan => primary,
+      _CalendarMarkerType.anniversary => warmColors?.accent ?? secondary,
+      _CalendarMarkerType.record => primary,
       _CalendarMarkerType.none => AppColors.muted,
     };
 
@@ -940,7 +991,7 @@ class _CalendarMarker extends StatelessWidget {
         icon,
         size: switch (markerType) {
           _CalendarMarkerType.pastRecord => 13,
-          _CalendarMarkerType.anniversary => 5,
+          _CalendarMarkerType.anniversary => 9,
           _ => 10,
         },
         color: color.withValues(alpha: isSelected ? 0.96 : 0.86),

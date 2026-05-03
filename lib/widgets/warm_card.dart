@@ -23,7 +23,7 @@ class WarmCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final warmColors = Theme.of(context).extension<WarmThemeColors>();
-    final primary = warmColors?.primary ?? AppColors.rose;
+    final primary = warmColors?.primary ?? const Color(0xFF7FA3AF);
     final cardColor = warmColors?.card ?? AppColors.milk;
 
     return Container(
@@ -36,14 +36,14 @@ class WarmCard extends StatelessWidget {
             border ?? Border.all(color: Colors.white.withValues(alpha: 0.8)),
         boxShadow: [
           BoxShadow(
-            color: primary.withValues(alpha: 0.12),
-            blurRadius: 26,
-            offset: const Offset(0, 14),
+            color: primary.withValues(alpha: 0.09),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
           ),
           BoxShadow(
-            color: Colors.white.withValues(alpha: 0.7),
-            blurRadius: 10,
-            offset: const Offset(-4, -4),
+            color: Colors.white.withValues(alpha: 0.64),
+            blurRadius: 8,
+            offset: const Offset(-3, -3),
           ),
         ],
       ),

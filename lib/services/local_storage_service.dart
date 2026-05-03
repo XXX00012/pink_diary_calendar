@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:pink_diary_calendar/config/app_info.dart';
 import 'package:pink_diary_calendar/models/app_settings.dart';
 import 'package:pink_diary_calendar/models/anniversary.dart';
 import 'package:pink_diary_calendar/models/daily_record.dart';
@@ -15,6 +16,7 @@ class LocalStorageService {
   static const String _userProfileKey = 'userProfile';
   static const String _appSettingsKey = 'appSettings';
   static const String _lifeListsKey = 'lifeLists';
+  static const String _lifeListCategoriesKey = 'lifeListCategories';
   static const String _hasAgreedLegalKey = 'hasAgreedLegal';
   static const String _agreedTermsVersionKey = 'agreedTermsVersion';
   static const String _agreedPrivacyVersionKey = 'agreedPrivacyVersion';
@@ -94,7 +96,7 @@ class LocalStorageService {
   Future<Set<String>> loadRecordedDateKeys() async {
     final records = await loadDailyRecords();
     return records.entries
-        .where((entry) => entry.value.hasContent)
+        .where((entry) => entry.value.hasAnyContent)
         .map((entry) => entry.key)
         .toSet();
   }
@@ -252,8 +254,78 @@ class LocalStorageService {
 
   Future<List<LifeList>> loadLifeListsByType(String type) async {
     final lifeLists = await loadLifeLists();
-    return lifeLists.where((entry) => entry.type == type).toList()
+    return lifeLists.where((entry) => entry.categoryId == type).toList()
       ..sort((first, second) => second.updatedAt.compareTo(first.updatedAt));
+  }
+
+  Future<List<LifeListCategory>> loadLifeListCategories() async {
+    final preferences = await SharedPreferences.getInstance();
+    final rawCategories = preferences.getString(_lifeListCategoriesKey);
+    final customCategories = <LifeListCategory>[];
+
+    if (rawCategories != null && rawCategories.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawCategories);
+        if (decoded is List) {
+          customCategories.addAll(
+            decoded
+                .whereType<Map>()
+                .map(
+                  (entry) => LifeListCategory.fromJson(
+                    Map<String, dynamic>.from(entry),
+                  ),
+                )
+                .where((entry) => !entry.isBuiltIn),
+          );
+        }
+      } catch (_) {
+        // Broken custom category data should not block built-in categories.
+      }
+    }
+
+    final builtInCategories = LifeListCategory.builtInCategories();
+    final builtInIds = builtInCategories.map((entry) => entry.id).toSet();
+    final validCustomCategories =
+        customCategories
+            .where((entry) => entry.name.trim().isNotEmpty)
+            .where((entry) => !builtInIds.contains(entry.id))
+            .toList()
+          ..sort(
+            (first, second) => first.createdAt.compareTo(second.createdAt),
+          );
+
+    return [...builtInCategories, ...validCustomCategories];
+  }
+
+  Future<void> saveLifeListCategories(List<LifeListCategory> categories) async {
+    final preferences = await SharedPreferences.getInstance();
+    final payload = categories
+        .where((entry) => !entry.isBuiltIn)
+        .map((entry) => entry.toJson())
+        .toList();
+    await preferences.setString(_lifeListCategoriesKey, jsonEncode(payload));
+  }
+
+  Future<void> addLifeListCategory(LifeListCategory category) async {
+    final categories = await loadLifeListCategories();
+    await saveLifeListCategories([...categories, category]);
+  }
+
+  Future<void> deleteLifeListCategory(
+    String categoryId, {
+    bool deleteLists = false,
+  }) async {
+    final categories = await loadLifeListCategories();
+    await saveLifeListCategories(
+      categories.where((entry) => entry.id != categoryId).toList(),
+    );
+
+    if (deleteLists) {
+      final lifeLists = await loadLifeLists();
+      await saveLifeLists(
+        lifeLists.where((entry) => entry.categoryId != categoryId).toList(),
+      );
+    }
   }
 
   Future<void> saveLifeLists(List<LifeList> lifeLists) async {
@@ -289,7 +361,7 @@ class LocalStorageService {
     final appSettings = await loadAppSettings();
 
     final payload = {
-      'appName': '暖桃日记',
+      'appName': AppInfo.appName,
       'exportedAt': DateTime.now().toIso8601String(),
       'dailyRecords': dailyRecords.map(
         (dateKey, record) => MapEntry(dateKey, record.toJson()),

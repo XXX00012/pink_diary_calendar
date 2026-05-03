@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pink_diary_calendar/config/app_info.dart';
 import 'package:pink_diary_calendar/pages/legal_consent_page.dart';
 import 'package:pink_diary_calendar/theme/app_theme.dart';
 import 'package:pink_diary_calendar/theme/theme_controller.dart';
@@ -26,7 +27,7 @@ class _WarmPeachCalendarAppState extends State<WarmPeachCalendarApp> {
       builder: (context, _) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: '暖桃日记',
+          title: AppInfo.appName,
           theme: AppTheme.light(_themeController.themeKey),
           home: const LegalGatePage(),
         );

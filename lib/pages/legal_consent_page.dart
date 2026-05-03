@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pink_diary_calendar/config/app_info.dart';
 import 'package:pink_diary_calendar/config/legal_links.dart' as legal;
 import 'package:pink_diary_calendar/pages/home_shell_page.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
@@ -162,7 +163,7 @@ class _LegalConsentPageState extends State<LegalConsentPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(content: Text('需要同意用户协议与隐私政策后才能继续使用暖桃日记。')),
+        SnackBar(content: Text('需要同意用户协议与隐私政策后才能继续使用${AppInfo.appName}。')),
       );
   }
 
@@ -177,7 +178,7 @@ class _LegalConsentPageState extends State<LegalConsentPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '欢迎使用暖桃日记',
+                '欢迎使用${AppInfo.appName}',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: AppColors.ink,
                   fontWeight: FontWeight.w900,
@@ -185,7 +186,7 @@ class _LegalConsentPageState extends State<LegalConsentPage> {
               ),
               const SizedBox(height: 10),
               Text(
-                '欢迎使用暖桃日记。为了保护你的个人信息和使用权益，请你完整阅读并同意以下《用户协议》和《隐私政策》后继续使用。',
+                '欢迎使用${AppInfo.appName}。为了保护你的个人信息和使用权益，请你完整阅读并同意以下《用户协议》和《隐私政策》后继续使用。',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.ink,
                   height: 1.55,

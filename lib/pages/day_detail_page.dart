@@ -50,14 +50,13 @@ class _DayDetailPageState extends State<DayDetailPage> {
   ];
 
   final ImagePicker _imagePicker = ImagePicker();
-  final TextEditingController _controller = TextEditingController();
 
   late final DateTime _date;
   late final String _dateKey;
   late int _promptIndex;
 
   DailyRecord? _record;
-  List<String> _images = [];
+  List<_EditableDiaryBlock> _blocks = [];
   List<ExpenseEntry> _expenses = [];
   List<PlanEntry> _plans = [];
   bool _isLoading = true;
@@ -102,7 +101,9 @@ class _DayDetailPageState extends State<DayDetailPage> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    for (final block in _blocks) {
+      block.dispose();
+    }
     super.dispose();
   }
 
@@ -114,12 +115,53 @@ class _DayDetailPageState extends State<DayDetailPage> {
 
     setState(() {
       _record = record;
-      _controller.text = record?.text ?? '';
-      _images = List<String>.from(record?.images ?? const []);
+      _replaceBlocks(_editableBlocksFromRecord(record));
       _expenses = List<ExpenseEntry>.from(record?.expenses ?? const []);
       _plans = List<PlanEntry>.from(record?.plans ?? const []);
       _isLoading = false;
     });
+  }
+
+  void _replaceBlocks(List<_EditableDiaryBlock> nextBlocks) {
+    for (final block in _blocks) {
+      block.dispose();
+    }
+    _blocks = nextBlocks;
+  }
+
+  List<_EditableDiaryBlock> _editableBlocksFromRecord(DailyRecord? record) {
+    final sourceBlocks = record?.blocks ?? const <DiaryBlock>[];
+    if (sourceBlocks.isEmpty) {
+      return [_newTextBlock(record?.text ?? '')];
+    }
+
+    final blocks = sourceBlocks.map((block) {
+      if (block.isImage) {
+        return _newImageBlock(block.imagePath, id: block.id);
+      }
+      return _newTextBlock(block.text, id: block.id);
+    }).toList();
+
+    if (blocks.where((block) => block.type == 'text').isEmpty) {
+      blocks.add(_newTextBlock(''));
+    }
+    return blocks;
+  }
+
+  _EditableDiaryBlock _newTextBlock(String text, {String? id}) {
+    return _EditableDiaryBlock.text(
+      id: id ?? _newEntryId('text-block'),
+      controller: TextEditingController(text: text),
+      createdAt: DateTime.now(),
+    );
+  }
+
+  _EditableDiaryBlock _newImageBlock(String imagePath, {String? id}) {
+    return _EditableDiaryBlock.image(
+      id: id ?? _newEntryId('image-block'),
+      imagePath: imagePath,
+      createdAt: DateTime.now(),
+    );
   }
 
   void _changePrompt() {
@@ -143,7 +185,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
         return;
       }
       setState(() {
-        _images = [..._images, savedPath];
+        _blocks = [..._blocks, _newImageBlock(savedPath), _newTextBlock('')];
       });
     } catch (_) {
       if (!mounted) {
@@ -179,9 +221,16 @@ class _DayDetailPageState extends State<DayDetailPage> {
     return fileName.substring(dotIndex);
   }
 
-  void _removeImage(String imagePath) {
+  void _removeImageBlock(String id) {
     setState(() {
-      _images = _images.where((path) => path != imagePath).toList();
+      final removedBlocks = _blocks.where((block) => block.id == id).toList();
+      _blocks = _blocks.where((block) => block.id != id).toList();
+      for (final block in removedBlocks) {
+        block.dispose();
+      }
+      if (_blocks.isEmpty) {
+        _blocks = [_newTextBlock('')];
+      }
     });
   }
 
@@ -226,10 +275,12 @@ class _DayDetailPageState extends State<DayDetailPage> {
     FocusScope.of(context).unfocus();
     setState(() => _isSaving = true);
 
+    final blocks = _collectDiaryBlocks();
     final record = DailyRecord(
       date: _dateKey,
-      text: _controller.text,
-      images: _images,
+      text: _combinedText(blocks),
+      images: _imagePaths(blocks),
+      blocks: blocks,
       expenses: _expenses,
       plans: _plans,
       updatedAt: DateTime.now(),
@@ -254,6 +305,43 @@ class _DayDetailPageState extends State<DayDetailPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  List<DiaryBlock> _collectDiaryBlocks() {
+    return _blocks.map((block) {
+      if (block.type == 'image') {
+        return DiaryBlock(
+          id: block.id,
+          type: 'image',
+          text: '',
+          imagePath: block.imagePath,
+          createdAt: block.createdAt,
+        );
+      }
+      return DiaryBlock(
+        id: block.id,
+        type: 'text',
+        text: block.controller?.text ?? '',
+        imagePath: '',
+        createdAt: block.createdAt,
+      );
+    }).toList();
+  }
+
+  String _combinedText(List<DiaryBlock> blocks) {
+    return blocks
+        .where((block) => block.isText)
+        .map((block) => block.text.trim())
+        .where((text) => text.isNotEmpty)
+        .join('\n\n');
+  }
+
+  List<String> _imagePaths(List<DiaryBlock> blocks) {
+    return blocks
+        .where((block) => block.isImage)
+        .map((block) => block.imagePath)
+        .where((path) => path.isNotEmpty)
+        .toList();
   }
 
   @override
@@ -295,10 +383,11 @@ class _DayDetailPageState extends State<DayDetailPage> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  _PaperTextField(
-                    controller: _controller,
+                  _DiaryBlocksEditor(
+                    blocks: _blocks,
                     enabled: !_isLoading && !_isSaving,
                     hintText: _inputHint,
+                    onRemoveImage: _removeImageBlock,
                   ),
                   const SizedBox(height: 16),
                   _QuickActionBar(
@@ -310,10 +399,6 @@ class _DayDetailPageState extends State<DayDetailPage> {
                 ],
               ),
             ),
-            if (_images.isNotEmpty) ...[
-              const SizedBox(height: 18),
-              _PhotoSection(images: _images, onRemove: _removeImage),
-            ],
             if (_expenses.isNotEmpty) ...[
               const SizedBox(height: 18),
               _ExpenseSection(
@@ -354,6 +439,192 @@ class _DayDetailPageState extends State<DayDetailPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _EditableDiaryBlock {
+  _EditableDiaryBlock.text({
+    required this.id,
+    required TextEditingController controller,
+    required this.createdAt,
+  }) : type = 'text',
+       imagePath = '',
+       controller = controller;
+
+  _EditableDiaryBlock.image({
+    required this.id,
+    required this.imagePath,
+    required this.createdAt,
+  }) : type = 'image',
+       controller = null;
+
+  final String id;
+  final String type;
+  final String imagePath;
+  final DateTime createdAt;
+  final TextEditingController? controller;
+
+  void dispose() {
+    controller?.dispose();
+  }
+}
+
+class _DiaryBlocksEditor extends StatelessWidget {
+  const _DiaryBlocksEditor({
+    required this.blocks,
+    required this.enabled,
+    required this.hintText,
+    required this.onRemoveImage,
+  });
+
+  final List<_EditableDiaryBlock> blocks;
+  final bool enabled;
+  final String hintText;
+  final ValueChanged<String> onRemoveImage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cream.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.8)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _PaperLinePainter(
+                lineColor: AppColors.rose.withValues(alpha: 0.12),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+            child: Column(
+              children: [
+                for (var index = 0; index < blocks.length; index++) ...[
+                  if (blocks[index].type == 'image')
+                    _InlineImageBlock(
+                      imagePath: blocks[index].imagePath,
+                      onRemove: () => onRemoveImage(blocks[index].id),
+                    )
+                  else
+                    _DiaryTextBlockField(
+                      controller: blocks[index].controller!,
+                      enabled: enabled,
+                      hintText: _hintForBlock(index),
+                      minLines: _minLinesForBlock(index),
+                    ),
+                  if (index != blocks.length - 1) const SizedBox(height: 14),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _hintForBlock(int index) {
+    if (index == 0) {
+      return hintText;
+    }
+    return '继续写一点……';
+  }
+
+  int _minLinesForBlock(int index) {
+    if (blocks.length == 1) {
+      return 12;
+    }
+    return index == 0 ? 6 : 4;
+  }
+}
+
+class _DiaryTextBlockField extends StatelessWidget {
+  const _DiaryTextBlockField({
+    required this.controller,
+    required this.enabled,
+    required this.hintText,
+    required this.minLines,
+  });
+
+  final TextEditingController controller;
+  final bool enabled;
+  final String hintText;
+  final int minLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      minLines: minLines,
+      maxLines: null,
+      keyboardType: TextInputType.multiline,
+      textAlignVertical: TextAlignVertical.top,
+      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+        color: AppColors.ink,
+        fontSize: 16,
+        height: 1.65,
+      ),
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: TextStyle(color: AppColors.muted.withValues(alpha: 0.72)),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+      ),
+    );
+  }
+}
+
+class _InlineImageBlock extends StatelessWidget {
+  const _InlineImageBlock({required this.imagePath, required this.onRemove});
+
+  final String imagePath;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: Stack(
+        children: [
+          AspectRatio(
+            aspectRatio: 4 / 3,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.milk.withValues(alpha: 0.68),
+                border: Border.all(
+                  color: AppColors.line.withValues(alpha: 0.8),
+                ),
+              ),
+              child: Image.file(
+                File(imagePath),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Text(
+                      '图片暂时无法显示',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: _MiniDeleteButton(onTap: onRemove),
+          ),
+        ],
       ),
     );
   }
@@ -682,72 +953,6 @@ class _PromptBar extends StatelessWidget {
   }
 }
 
-class _PaperTextField extends StatelessWidget {
-  const _PaperTextField({
-    required this.controller,
-    required this.enabled,
-    required this.hintText,
-  });
-
-  final TextEditingController controller;
-  final bool enabled;
-  final String hintText;
-
-  @override
-  Widget build(BuildContext context) {
-    final inputHeight = (MediaQuery.sizeOf(context).height * 0.42).clamp(
-      300.0,
-      500.0,
-    );
-
-    return Container(
-      height: inputHeight,
-      decoration: BoxDecoration(
-        color: AppColors.cream.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.line.withValues(alpha: 0.8)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _PaperLinePainter(
-                  lineColor: AppColors.rose.withValues(alpha: 0.16),
-                ),
-              ),
-            ),
-            TextField(
-              key: const ValueKey('daily-record-input'),
-              controller: controller,
-              enabled: enabled,
-              expands: true,
-              maxLines: null,
-              minLines: null,
-              keyboardType: TextInputType.multiline,
-              textAlignVertical: TextAlignVertical.top,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppColors.ink,
-                fontSize: 16,
-                height: 1.65,
-              ),
-              decoration: InputDecoration(
-                hintText: hintText,
-                hintStyle: TextStyle(
-                  color: AppColors.muted.withValues(alpha: 0.72),
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _QuickActionBar extends StatelessWidget {
   const _QuickActionBar({
     required this.highlightPlan,
@@ -822,94 +1027,6 @@ class _QuickActionButton extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-}
-
-class _PhotoSection extends StatelessWidget {
-  const _PhotoSection({required this.images, required this.onRemove});
-
-  final List<String> images;
-  final ValueChanged<String> onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return WarmCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle(icon: Icons.photo_rounded, title: '今日照片'),
-          const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: images.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1,
-            ),
-            itemBuilder: (context, index) {
-              final imagePath = images[index];
-              return _PhotoTile(
-                imagePath: imagePath,
-                onRemove: () => onRemove(imagePath),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PhotoTile extends StatelessWidget {
-  const _PhotoTile({required this.imagePath, required this.onRemove});
-
-  final String imagePath;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppColors.blush.withValues(alpha: 0.5),
-              border: Border.all(color: AppColors.line.withValues(alpha: 0.8)),
-            ),
-            child: Image.file(
-              File(imagePath),
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      '图片暂时无法显示',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.muted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          Positioned(
-            top: 8,
-            right: 8,
-            child: _MiniDeleteButton(onTap: onRemove),
-          ),
-        ],
       ),
     );
   }

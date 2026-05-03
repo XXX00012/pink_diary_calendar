@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:pink_diary_calendar/config/app_info.dart';
 import 'package:pink_diary_calendar/models/anniversary.dart';
 import 'package:pink_diary_calendar/models/app_settings.dart';
 import 'package:pink_diary_calendar/services/local_storage_service.dart';
@@ -242,7 +243,7 @@ class NotificationService {
       }
       await _notifications.show(
         _testNotificationId,
-        '暖桃日记',
+        AppInfo.appName,
         '通知功能已经开启，重要日子不会被忘记啦',
         _notificationDetails(),
       );
