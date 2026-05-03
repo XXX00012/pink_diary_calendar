@@ -119,7 +119,7 @@ class _CalendarPageState extends State<CalendarPage> {
       (anniversary) => AnniversaryUtils.matchesCalendarDate(anniversary, date),
     );
     if (hasAnniversary) {
-      return _CalendarMarkerType.anniversary;
+      return hasRecord ? _CalendarMarkerType.record : _CalendarMarkerType.none;
     }
 
     if (hasRecord) {
@@ -259,7 +259,8 @@ class _CalendarPageState extends State<CalendarPage> {
             title: AppInfo.appName,
             subtitle: '记录过去，书写今天，安排未来',
             icon: Icons.calendar_month_rounded,
-            trailing: LineDogDecoration(),
+            trailing: LineCatDecoration(),
+            keepSubtitleOnOneLine: true,
           ),
           const SizedBox(height: 18),
           WarmCard(

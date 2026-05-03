@@ -325,7 +325,6 @@ class _LifeListPageState extends State<LifeListPage> {
             }),
           ],
         ],
-        ),
       ),
     );
   }
@@ -551,20 +550,19 @@ class _CategoryPickerSheet extends StatelessWidget {
         child: ListView(
           shrinkWrap: true,
           children: [
-          Text('选择分类', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          ...categories.map((category) {
-            final info = LifeListTypeInfo.fromCategory(category);
-            return _SheetActionTile(
-              icon: info.icon,
-              title: info.title,
-              subtitle: info.description,
-              color: info.color,
-              onTap: () => Navigator.of(context).pop(category),
-            );
-          }),
-            ],
-          ),
+            Text('选择分类', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            ...categories.map((category) {
+              final info = LifeListTypeInfo.fromCategory(category);
+              return _SheetActionTile(
+                icon: info.icon,
+                title: info.title,
+                subtitle: info.description,
+                color: info.color,
+                onTap: () => Navigator.of(context).pop(category),
+              );
+            }),
+          ],
         ),
       ),
     );
@@ -632,9 +630,7 @@ class _CreateCategoryDialogState extends State<_CreateCategoryDialog> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: ['game', 'food', 'star'].map((
-                iconKey,
-              ) {
+              children: ['game', 'food', 'star'].map((iconKey) {
                 final selected = _icon == iconKey;
                 return ChoiceChip(
                   selected: selected,
